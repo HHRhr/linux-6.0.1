@@ -20,7 +20,8 @@ sound/
 tools/
 usr/
 crypto/
-
+drivers/
+net/
 
 .*
 *.a
