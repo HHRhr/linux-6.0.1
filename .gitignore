@@ -19,10 +19,8 @@ security/
 sound/
 tools/
 usr/
+crypto/
 
-/Kbuild
-/Kconfig
-/MAINTAINERS
 
 .*
 *.a
