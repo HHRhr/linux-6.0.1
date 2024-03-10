@@ -61,19 +61,14 @@ phys_addr_t __fdt_pointer __initdata;
  * Standard memory resources
  */
 static struct resource mem_res[] = {
-	{
-		.name = "Kernel code",
-		.start = 0,
-		.end = 0,
-		.flags = IORESOURCE_SYSTEM_RAM
-	},
-	{
-		.name = "Kernel data",
-		.start = 0,
-		.end = 0,
-		.flags = IORESOURCE_SYSTEM_RAM
-	}
-};
+	{.name = "Kernel code",
+	 .start = 0,
+	 .end = 0,
+	 .flags = IORESOURCE_SYSTEM_RAM},
+	{.name = "Kernel data",
+	 .start = 0,
+	 .end = 0,
+	 .flags = IORESOURCE_SYSTEM_RAM}};
 
 #define kernel_code mem_res[0]
 #define kernel_data mem_res[1]
@@ -89,7 +84,7 @@ void __init smp_setup_processor_id(void)
 	set_cpu_logical_map(0, mpidr);
 
 	pr_info("Booting Linux on physical CPU 0x%010lx [0x%08x]\n",
-		(unsigned long)mpidr, read_cpuid_id());
+			(unsigned long)mpidr, read_cpuid_id());
 }
 
 bool arch_match_cpu_phys_id(int cpu, u64 phys_id)
@@ -119,7 +114,8 @@ static void __init smp_build_mpidr_hash(void)
 	 * Find and stash the last and first bit set at all affinity levels to
 	 * check how many bits are required to represent them.
 	 */
-	for (i = 0; i < 4; i++) {
+	for (i = 0; i < 4; i++)
+	{
 		affinity = MPIDR_AFFINITY_LEVEL(mask, i);
 		/*
 		 * Find the MSB bit and LSB bits position
@@ -143,18 +139,18 @@ static void __init smp_build_mpidr_hash(void)
 	mpidr_hash.shift_aff[0] = MPIDR_LEVEL_SHIFT(0) + fs[0];
 	mpidr_hash.shift_aff[1] = MPIDR_LEVEL_SHIFT(1) + fs[1] - bits[0];
 	mpidr_hash.shift_aff[2] = MPIDR_LEVEL_SHIFT(2) + fs[2] -
-						(bits[1] + bits[0]);
+							  (bits[1] + bits[0]);
 	mpidr_hash.shift_aff[3] = MPIDR_LEVEL_SHIFT(3) +
-				  fs[3] - (bits[2] + bits[1] + bits[0]);
+							  fs[3] - (bits[2] + bits[1] + bits[0]);
 	mpidr_hash.mask = mask;
 	mpidr_hash.bits = bits[3] + bits[2] + bits[1] + bits[0];
 	pr_debug("MPIDR hash: aff0[%u] aff1[%u] aff2[%u] aff3[%u] mask[%#llx] bits[%u]\n",
-		mpidr_hash.shift_aff[0],
-		mpidr_hash.shift_aff[1],
-		mpidr_hash.shift_aff[2],
-		mpidr_hash.shift_aff[3],
-		mpidr_hash.mask,
-		mpidr_hash.bits);
+			 mpidr_hash.shift_aff[0],
+			 mpidr_hash.shift_aff[1],
+			 mpidr_hash.shift_aff[2],
+			 mpidr_hash.shift_aff[3],
+			 mpidr_hash.mask,
+			 mpidr_hash.bits);
 	/*
 	 * 4x is an arbitrary value used to warn on a hash table much bigger
 	 * than expected on most systems.
@@ -187,12 +183,13 @@ static void __init setup_machine_fdt(phys_addr_t dt_phys)
 	if (dt_virt)
 		memblock_reserve(dt_phys, size);
 
-	if (!dt_virt || !early_init_dt_scan(dt_virt)) {
+	if (!dt_virt || !early_init_dt_scan(dt_virt))
+	{
 		pr_crit("\n"
-			"Error: invalid device tree blob at physical address %pa (virtual address 0x%px)\n"
-			"The dtb must be 8-byte aligned and must not exceed 2 MB in size\n"
-			"\nPlease check your bootloader.",
-			&dt_phys, dt_virt);
+				"Error: invalid device tree blob at physical address %pa (virtual address 0x%px)\n"
+				"The dtb must be 8-byte aligned and must not exceed 2 MB in size\n"
+				"\nPlease check your bootloader.",
+				&dt_phys, dt_virt);
 
 		/*
 		 * Note that in this _really_ early stage we cannot even BUG()
@@ -221,10 +218,10 @@ static void __init request_standard_resources(void)
 	unsigned long i = 0;
 	size_t res_size;
 
-	kernel_code.start   = __pa_symbol(_stext);
-	kernel_code.end     = __pa_symbol(__init_begin - 1);
-	kernel_data.start   = __pa_symbol(_sdata);
-	kernel_data.end     = __pa_symbol(_end - 1);
+	kernel_code.start = __pa_symbol(_stext);
+	kernel_code.end = __pa_symbol(__init_begin - 1);
+	kernel_data.start = __pa_symbol(_sdata);
+	kernel_data.end = __pa_symbol(_end - 1);
 	insert_resource(&iomem_resource, &kernel_code);
 	insert_resource(&iomem_resource, &kernel_data);
 
@@ -234,15 +231,19 @@ static void __init request_standard_resources(void)
 	if (!standard_resources)
 		panic("%s: Failed to allocate %zu bytes\n", __func__, res_size);
 
-	for_each_mem_region(region) {
+	for_each_mem_region(region)
+	{
 		res = &standard_resources[i++];
-		if (memblock_is_nomap(region)) {
-			res->name  = "reserved";
+		if (memblock_is_nomap(region))
+		{
+			res->name = "reserved";
 			res->flags = IORESOURCE_MEM;
 			res->start = __pfn_to_phys(memblock_region_reserved_base_pfn(region));
 			res->end = __pfn_to_phys(memblock_region_reserved_end_pfn(region)) - 1;
-		} else {
-			res->name  = "System RAM";
+		}
+		else
+		{
+			res->name = "System RAM";
 			res->flags = IORESOURCE_SYSTEM_RAM | IORESOURCE_BUSY;
 			res->start = __pfn_to_phys(memblock_region_memory_base_pfn(region));
 			res->end = __pfn_to_phys(memblock_region_memory_end_pfn(region)) - 1;
@@ -256,14 +257,16 @@ static int __init reserve_memblock_reserved_regions(void)
 {
 	u64 i, j;
 
-	for (i = 0; i < num_standard_resources; ++i) {
+	for (i = 0; i < num_standard_resources; ++i)
+	{
 		struct resource *mem = &standard_resources[i];
 		phys_addr_t r_start, r_end, mem_size = resource_size(mem);
 
 		if (!memblock_is_region_reserved(mem->start, mem_size))
 			continue;
 
-		for_each_reserved_mem_range(j, &r_start, &r_end) {
+		for_each_reserved_mem_range(j, &r_start, &r_end)
+		{
 			resource_size_t start, end;
 
 			start = max(PFN_PHYS(PFN_DOWN(r_start)), mem->start);
@@ -280,13 +283,14 @@ static int __init reserve_memblock_reserved_regions(void)
 }
 arch_initcall(reserve_memblock_reserved_regions);
 
-u64 __cpu_logical_map[NR_CPUS] = { [0 ... NR_CPUS-1] = INVALID_HWID };
+u64 __cpu_logical_map[NR_CPUS] = {[0 ... NR_CPUS - 1] = INVALID_HWID};
 
 u64 cpu_logical_map(unsigned int cpu)
 {
 	return __cpu_logical_map[cpu];
 }
 
+// 在main.c中的start_kernel调用，对特定架构进行初始化
 void __init __no_sanitize_address setup_arch(char **cmdline_p)
 {
 	setup_initial_init_mm(_stext, _etext, _edata, _end);
@@ -303,6 +307,10 @@ void __init __no_sanitize_address setup_arch(char **cmdline_p)
 	early_fixmap_init();
 	early_ioremap_init();
 
+	/*
+		扫描设备树
+		在其中调用early_init_dt_scan() -> memblock_add() 初始化memory type的内存
+	*/
 	setup_machine_fdt(__fdt_pointer);
 
 	/*
@@ -329,8 +337,12 @@ void __init __no_sanitize_address setup_arch(char **cmdline_p)
 	efi_init();
 
 	if (!efi_enabled(EFI_BOOT) && ((u64)_text % MIN_KIMG_ALIGN) != 0)
-	     pr_warn(FW_BUG "Kernel image misaligned at boot, please fix your bootloader!");
+		pr_warn(FW_BUG "Kernel image misaligned at boot, please fix your bootloader!");
 
+	/*
+		进行arm64特有的内存初始化，标记一些内核要使用的区域(代码段、数据段、initrd等)，以及一些特殊的内存区域，
+			比如reserved type的内存,是通过调用early_init_fdt_scan_reserved_mem建立的
+	*/
 	arm64_memblock_init();
 
 	paging_init();
@@ -343,6 +355,9 @@ void __init __no_sanitize_address setup_arch(char **cmdline_p)
 	if (acpi_disabled)
 		unflatten_device_tree();
 
+	/*
+		其中调用dma_contiguous_reserve为DMA找到一个dma_contiguous_default_area指针
+	 */
 	bootmem_init();
 
 	kasan_init();
@@ -372,11 +387,12 @@ void __init __no_sanitize_address setup_arch(char **cmdline_p)
 	init_task.thread_info.ttbr0 = phys_to_ttbr(__pa_symbol(reserved_pg_dir));
 #endif
 
-	if (boot_args[1] || boot_args[2] || boot_args[3]) {
+	if (boot_args[1] || boot_args[2] || boot_args[3])
+	{
 		pr_err("WARNING: x1-x3 nonzero in violation of boot protocol:\n"
-			"\tx1: %016llx\n\tx2: %016llx\n\tx3: %016llx\n"
-			"This indicates a broken bootloader or old kernel\n",
-			boot_args[1], boot_args[2], boot_args[3]);
+			   "\tx1: %016llx\n\tx2: %016llx\n\tx3: %016llx\n"
+			   "This indicates a broken bootloader or old kernel\n",
+			   boot_args[1], boot_args[2], boot_args[3]);
 	}
 }
 
@@ -395,7 +411,8 @@ static int __init topology_init(void)
 {
 	int i;
 
-	for_each_possible_cpu(i) {
+	for_each_possible_cpu(i)
+	{
 		struct cpu *cpu = &per_cpu(cpu_data.cpu, i);
 		cpu->hotpluggable = cpu_can_disable(i);
 		register_cpu(cpu, i);
@@ -409,17 +426,20 @@ static void dump_kernel_offset(void)
 {
 	const unsigned long offset = kaslr_offset();
 
-	if (IS_ENABLED(CONFIG_RANDOMIZE_BASE) && offset > 0) {
+	if (IS_ENABLED(CONFIG_RANDOMIZE_BASE) && offset > 0)
+	{
 		pr_emerg("Kernel Offset: 0x%lx from 0x%lx\n",
-			 offset, KIMAGE_VADDR);
+				 offset, KIMAGE_VADDR);
 		pr_emerg("PHYS_OFFSET: 0x%llx\n", PHYS_OFFSET);
-	} else {
+	}
+	else
+	{
 		pr_emerg("Kernel Offset: disabled\n");
 	}
 }
 
 static int arm64_panic_block_dump(struct notifier_block *self,
-				  unsigned long v, void *p)
+								  unsigned long v, void *p)
 {
 	dump_kernel_offset();
 	dump_cpu_features();
@@ -428,13 +448,12 @@ static int arm64_panic_block_dump(struct notifier_block *self,
 }
 
 static struct notifier_block arm64_panic_block = {
-	.notifier_call = arm64_panic_block_dump
-};
+	.notifier_call = arm64_panic_block_dump};
 
 static int __init register_arm64_panic_block(void)
 {
 	atomic_notifier_chain_register(&panic_notifier_list,
-				       &arm64_panic_block);
+								   &arm64_panic_block);
 	return 0;
 }
 device_initcall(register_arm64_panic_block);

@@ -39,7 +39,7 @@
 
 #ifdef CONFIG_CMA_DEBUG
 #ifndef DEBUG
-#  define DEBUG
+#define DEBUG
 #endif
 #endif
 
@@ -71,13 +71,14 @@ struct cma *dma_contiguous_default_area;
  */
 static const phys_addr_t size_bytes __initconst =
 	(phys_addr_t)CMA_SIZE_MBYTES * SZ_1M;
-static phys_addr_t  size_cmdline __initdata = -1;
+static phys_addr_t size_cmdline __initdata = -1;
 static phys_addr_t base_cmdline __initdata;
 static phys_addr_t limit_cmdline __initdata;
 
 static int __init early_cma(char *p)
 {
-	if (!p) {
+	if (!p)
+	{
 		pr_err("Config string not provided\n");
 		return -EINVAL;
 	}
@@ -86,7 +87,8 @@ static int __init early_cma(char *p)
 	if (*p != '@')
 		return 0;
 	base_cmdline = memparse(p + 1, &p);
-	if (*p != '-') {
+	if (*p != '-')
+	{
 		limit_cmdline = base_cmdline + size_cmdline;
 		return 0;
 	}
@@ -135,22 +137,24 @@ void __init dma_pernuma_cma_reserve(void)
 	if (!pernuma_size_bytes)
 		return;
 
-	for_each_online_node(nid) {
+	for_each_online_node(nid)
+	{
 		int ret;
 		char name[CMA_MAX_NAME];
 		struct cma **cma = &dma_contiguous_pernuma_area[nid];
 
 		snprintf(name, sizeof(name), "pernuma%d", nid);
 		ret = cma_declare_contiguous_nid(0, pernuma_size_bytes, 0, 0,
-						 0, false, name, cma, nid);
-		if (ret) {
+										 0, false, name, cma, nid);
+		if (ret)
+		{
 			pr_warn("%s: reservation failed: err %d, node %d", __func__,
-				ret, nid);
+					ret, nid);
 			continue;
 		}
 
 		pr_debug("%s: reserved %llu MiB on node %d\n", __func__,
-			(unsigned long long)pernuma_size_bytes / SZ_1M, nid);
+				 (unsigned long long)pernuma_size_bytes / SZ_1M, nid);
 	}
 }
 #endif
@@ -164,8 +168,14 @@ void __init dma_pernuma_cma_reserve(void)
  * has been activated and all other subsystems have already allocated/reserved
  * memory.
  */
-// hhr 这个函数应该被架构特定代码来调用，例如arm/mm/init.c:arm_memblock_init
-// 前提：早期分配器memblock/bootmem已被激活，其他子系统已经分配/预留内存
+/*
+	该函数会为DMA申请一块CMA区域，可能通过boot参数自己去申请reserve area，
+		也可能直接使用设备树配置中初始化的dma_contiguous_default_area，
+		总之，最后这块CMA区域由dma_contiguous_default_area引用
+
+	这个函数是在与架构相关的初始化过程中被调用的，此其他子系统所必要的内存已分配完毕
+		start_kernel() -> setup_arch() -> bootmem_init() -> dma_contiguous_reserve()
+*/
 void __init dma_contiguous_reserve(phys_addr_t limit)
 {
 	phys_addr_t selected_size = 0;
@@ -176,17 +186,20 @@ void __init dma_contiguous_reserve(phys_addr_t limit)
 	pr_debug("%s(limit %08lx)\n", __func__, (unsigned long)limit);
 
 	// 优先使用内核启动参数，格式为cma=size[@start][,limit]
-	if (size_cmdline != -1) {
+	if (size_cmdline != -1)
+	{
 		selected_size = size_cmdline;
 		selected_base = base_cmdline;
 		// 不同的架构会有不同的limit，例如arm：mdesc->dma_zone_size
 		selected_limit = min_not_zero(limit_cmdline, limit);
-		
+
 		// 相当于用户指定了一个特定位置，但不推荐用户给定limit_cmdline
 		if (base_cmdline + size_cmdline == limit_cmdline)
 			fixed = true;
-	} else {
-	// 其次使用静态配置值
+	}
+	else
+	{
+		// 其次使用静态配置值
 #ifdef CONFIG_CMA_SIZE_SEL_MBYTES
 		// size_bytes来源于CMA_SIZE_MBYTES，默认是16M
 		selected_size = size_bytes;
@@ -199,17 +212,22 @@ void __init dma_contiguous_reserve(phys_addr_t limit)
 #endif
 	}
 
-	// dma_contiguous_default_area还没被创建
-	// 此时需要为dma分配CMA，并作为默认CMA区域使用
-	if (selected_size && !dma_contiguous_default_area) {
+	/*
+		有boot参数,从boot参数创建CMA
+		无boot参数
+			有dma_contiguous_default_area,直接使用
+			无dma_contiguous_default_area时,从内核配置参数创建
+		最终dma_contiguous_default_area会被赋一个指向CMA区域的指针
+	*/
+	if (selected_size && !dma_contiguous_default_area)
+	{
 		pr_debug("%s: reserving %ld MiB for global area\n", __func__,
-			 (unsigned long)selected_size / SZ_1M);
+				 (unsigned long)selected_size / SZ_1M);
 
-		
 		dma_contiguous_reserve_area(selected_size, selected_base,
-					    selected_limit,
-					    &dma_contiguous_default_area,
-					    fixed);
+									selected_limit,
+									&dma_contiguous_default_area,
+									fixed);
 	}
 }
 
@@ -236,20 +254,20 @@ dma_contiguous_early_fixup(phys_addr_t base, unsigned long size)
  * reserve in range from @base to @limit.
  */
 int __init dma_contiguous_reserve_area(phys_addr_t size, phys_addr_t base,
-				       phys_addr_t limit, struct cma **res_cma,
-				       bool fixed)
+									   phys_addr_t limit, struct cma **res_cma,
+									   bool fixed)
 {
 	int ret;
 
 	// mm/cma.c
 	ret = cma_declare_contiguous(base, size, limit, 0, 0, fixed,
-					"reserved", res_cma);
+								 "reserved", res_cma);
 	if (ret)
 		return ret;
 
 	/* Architecture specific contiguous memory fixup. */
 	dma_contiguous_early_fixup(cma_get_base(*res_cma),
-				cma_get_size(*res_cma));
+							   cma_get_size(*res_cma));
 
 	return 0;
 }
@@ -266,10 +284,10 @@ int __init dma_contiguous_reserve_area(phys_addr_t size, phys_addr_t base,
  * global one. Requires architecture specific dev_get_cma_area() helper
  * function.
  */
- // hhr 由驱动调用，从CMA区域为设备分配DMA内存
- // count是申请的page个数，一个page为4K
+// hhr 由驱动调用，从CMA区域为设备分配DMA内存
+// count是申请的page个数，一个page为4K
 struct page *dma_alloc_from_contiguous(struct device *dev, size_t count,
-				       unsigned int align, bool no_warn)
+									   unsigned int align, bool no_warn)
 {
 	if (align > CONFIG_CMA_ALIGNMENT)
 		align = CONFIG_CMA_ALIGNMENT;
@@ -288,7 +306,7 @@ struct page *dma_alloc_from_contiguous(struct device *dev, size_t count,
  * true otherwise.
  */
 bool dma_release_from_contiguous(struct device *dev, struct page *pages,
-				 int count)
+								 int count)
 {
 	return cma_release(dev_get_cma_area(dev), pages, count);
 }
@@ -330,11 +348,13 @@ struct page *dma_alloc_contiguous(struct device *dev, size_t size, gfp_t gfp)
 		return NULL;
 
 #ifdef CONFIG_DMA_PERNUMA_CMA
-	if (nid != NUMA_NO_NODE && !(gfp & (GFP_DMA | GFP_DMA32))) {
+	if (nid != NUMA_NO_NODE && !(gfp & (GFP_DMA | GFP_DMA32)))
+	{
 		struct cma *cma = dma_contiguous_pernuma_area[nid];
 		struct page *page;
 
-		if (cma) {
+		if (cma)
+		{
 			page = cma_alloc_aligned(cma, size, gfp);
 			if (page)
 				return page;
@@ -363,16 +383,19 @@ void dma_free_contiguous(struct device *dev, struct page *page, size_t size)
 	unsigned int count = PAGE_ALIGN(size) >> PAGE_SHIFT;
 
 	/* if dev has its own cma, free page from there */
-	if (dev->cma_area) {
+	if (dev->cma_area)
+	{
 		if (cma_release(dev->cma_area, page, count))
 			return;
-	} else {
+	}
+	else
+	{
 		/*
 		 * otherwise, page is from either per-numa cma or default cma
 		 */
 #ifdef CONFIG_DMA_PERNUMA_CMA
 		if (cma_release(dma_contiguous_pernuma_area[page_to_nid(page)],
-					page, count))
+						page, count))
 			return;
 #endif
 		if (cma_release(dma_contiguous_default_area, page, count))
@@ -401,58 +424,67 @@ static int rmem_cma_device_init(struct reserved_mem *rmem, struct device *dev)
 }
 
 static void rmem_cma_device_release(struct reserved_mem *rmem,
-				    struct device *dev)
+									struct device *dev)
 {
 	dev->cma_area = NULL;
 }
 
 static const struct reserved_mem_ops rmem_cma_ops = {
-	.device_init	= rmem_cma_device_init,
+	.device_init = rmem_cma_device_init,
 	.device_release = rmem_cma_device_release,
 };
 
+/*
+	能进入该setup函数的CMA设备树配置都属于Global CMA area，
+	只不过通过cma-default属性来区分默认和非默认
 
-// 利用设备树中给出的reserved_mem信息来创建一块CMA区域
+	带cma-default属性：如果有boot参数，CMA area配置从boot参数读取，
+		否则从设备树中读取，最后将dma_contiguous_default_area指向该CMA area
+	不带cma-default属性：从设备树中读取cma area的配置，创建一个CMA区域
+
+	此外还有一些其他限制，必须具备reusable属性，不能有no-map的属性
+		reusable属性可以在CMA区域不用时，作为常规内容让buddy分配出去
+
+	..另，私有的CMA area由驱动自己管理，
+		最终通过dma_declare_contiguous接口为一个指定的设备而注册CMA area
+*/
 static int __init rmem_cma_setup(struct reserved_mem *rmem)
 {
+	// 获取设备树节点信息
 	unsigned long node = rmem->fdt_node;
 	bool default_cma = of_get_flat_dt_prop(node, "linux,cma-default", NULL);
 	struct cma *cma;
 	int err;
 
-	// 同时设置了内核启动参数和设备树的cma-default配置，*** 以内核启动参数优先
-	if (size_cmdline != -1 && default_cma) {
+	// cma-default，但是有boot参数，以boot参数优先
+	if (size_cmdline != -1 && default_cma)
+	{
 		pr_info("Reserved memory: bypass %s node, using cmdline CMA params instead\n",
-			rmem->name);
+				rmem->name);
 		return -EBUSY;
 	}
 
-	// *** 可以看到，内核启动参数和cma-default都可以触发申请供DMA使用的默认CMA内存，但究竟使用哪一个呢？
-	// 首先，这块cma内存由指针dma_contiguous_default_area管理，只需观察这个指针的赋值情况
-	// 1. 如果同时设置了内核启动参数和cma-default，则当前函数终止，由dma_contiguous_reserve()来申请默认CMA内存
-	// 2. 如果仅设置了cma-default，则由当前函数申请cma内存
-	// 3. 如果未设置cma-default，则当前函数申请的CMA内存和DMA就没有关系，默认CMA内存仍然由dma_contiguous_reserve()来申请
-	// 至于和DMA无关的CMA内存，就先不考虑了
-
 	if (!of_get_flat_dt_prop(node, "reusable", NULL) ||
-	    of_get_flat_dt_prop(node, "no-map", NULL))
+		of_get_flat_dt_prop(node, "no-map", NULL))
 		return -EINVAL;
 
-	if (!IS_ALIGNED(rmem->base | rmem->size, CMA_MIN_ALIGNMENT_BYTES)) {
+	if (!IS_ALIGNED(rmem->base | rmem->size, CMA_MIN_ALIGNMENT_BYTES))
+	{
 		pr_err("Reserved memory: incorrect alignment of CMA region\n");
 		return -EINVAL;
 	}
 
 	// 申请CMA内存
 	err = cma_init_reserved_mem(rmem->base, rmem->size, 0, rmem->name, &cma);
-	if (err) {
+	if (err)
+	{
 		pr_err("Reserved memory: unable to setup CMA region\n");
 		return err;
 	}
 	/* Architecture specific contiguous memory fixup. */
 	dma_contiguous_early_fixup(rmem->base, rmem->size);
 
-	// DMA默认CMA内存
+	// 设置了cma-default，将该CMA指针交给DMA使用
 	if (default_cma)
 		dma_contiguous_default_area = cma;
 
@@ -460,11 +492,20 @@ static int __init rmem_cma_setup(struct reserved_mem *rmem)
 	rmem->priv = cma;
 
 	pr_info("Reserved memory: created CMA memory pool at %pa, size %ld MiB\n",
-		&rmem->base, (unsigned long)rmem->size / SZ_1M);
+			&rmem->base, (unsigned long)rmem->size / SZ_1M);
 
 	return 0;
 }
 
-// 这个宏会将"shared-dma-pool", rmem_cma_setup放到__reservedmem_of_table中，在扫描设备树时被找到并调用
+/*
+	从设备树初始化CMA区域的源头
+	该宏创建了一个of_device_id类型的实例,放在__reservedmem_of_table这一section中：
+		__of_table_cma {
+			.compatible =  "shared-dma-pool",				\
+			.data = rmem_cma_setup
+		}
+	内核在解析设备树时，如果找到和compatible为shared-dma-pool的节点，
+		就调用关联的rmem_cma_setup函数
+*/
 RESERVEDMEM_OF_DECLARE(cma, "shared-dma-pool", rmem_cma_setup);
 #endif

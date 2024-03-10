@@ -5,18 +5,20 @@
 #include <linux/debugfs.h>
 #include <linux/kobject.h>
 
-struct cma_kobject {
+struct cma_kobject
+{
 	struct kobject kobj;
 	struct cma *cma;
 };
 
-// hhr
-struct cma {
-	unsigned long   base_pfn;	// 起始页框号
-	unsigned long   count;		// 大小，即页面的个数
-	unsigned long   *bitmap;	// 位图，记录页面的分配情况
-	unsigned int order_per_bit; /* Order of pages represented by one bit */	// bitmap中，1bit所代表的页面数量
-	spinlock_t	lock;
+struct cma
+{
+	unsigned long base_pfn; // 起始页框号
+	unsigned long count;	// 大小，即页面的个数
+	unsigned long *bitmap;	// 位图，记录页面的分配情况
+	// bitmap中，1 bit所代表的页面数量，2^order个page
+	unsigned int order_per_bit; /* Order of pages represented by one bit */
+	spinlock_t lock;
 #ifdef CONFIG_CMA_DEBUGFS
 	struct hlist_head mem_head;
 	spinlock_t mem_head_lock;
@@ -34,6 +36,12 @@ struct cma {
 	bool reserve_pages_on_error;
 };
 
+/*
+ cma区域大致可以分为两种
+	1.Global CMA area，可通过boot参数进行配置
+		通过dma_contiguous_reserve让DMA引用，在所有驱动间共享
+	2.per device，每个设备在设备树上通过reserved memory node声明，该设备独享
+*/
 extern struct cma cma_areas[MAX_CMA_AREAS];
 extern unsigned cma_area_count;
 
@@ -47,8 +55,8 @@ void cma_sysfs_account_success_pages(struct cma *cma, unsigned long nr_pages);
 void cma_sysfs_account_fail_pages(struct cma *cma, unsigned long nr_pages);
 #else
 static inline void cma_sysfs_account_success_pages(struct cma *cma,
-						   unsigned long nr_pages) {};
+												   unsigned long nr_pages){};
 static inline void cma_sysfs_account_fail_pages(struct cma *cma,
-						unsigned long nr_pages) {};
+												unsigned long nr_pages){};
 #endif
 #endif
