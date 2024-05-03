@@ -55,7 +55,8 @@ static void warn_no_thread(unsigned int irq, struct irqaction *action)
 		return;
 
 	printk(KERN_WARNING "IRQ %d device %s returned IRQ_WAKE_THREAD "
-	       "but no thread function available.", irq, action->name);
+						"but no thread function available.",
+		   irq, action->name);
 }
 
 void __irq_wake_thread(struct irq_desc *desc, struct irqaction *action)
@@ -144,31 +145,37 @@ irqreturn_t __handle_irq_event_percpu(struct irq_desc *desc)
 
 	record_irq_time(desc);
 
-	for_each_action_of_desc(desc, action) {
+	for_each_action_of_desc(desc, action)
+	{
 		irqreturn_t res;
 
 		/*
 		 * If this IRQ would be threaded under force_irqthreads, mark it so.
 		 */
 		if (irq_settings_can_thread(desc) &&
-		    !(action->flags & (IRQF_NO_THREAD | IRQF_PERCPU | IRQF_ONESHOT)))
+			!(action->flags & (IRQF_NO_THREAD | IRQF_PERCPU | IRQF_ONESHOT)))
 			lockdep_hardirq_threaded();
 
 		trace_irq_handler_entry(irq, action);
+		/*
+			执行highlevel event handler
+		*/
 		res = action->handler(irq, action->dev_id);
 		trace_irq_handler_exit(irq, action, res);
 
-		if (WARN_ONCE(!irqs_disabled(),"irq %u handler %pS enabled interrupts\n",
-			      irq, action->handler))
+		if (WARN_ONCE(!irqs_disabled(), "irq %u handler %pS enabled interrupts\n",
+					  irq, action->handler))
 			local_irq_disable();
 
-		switch (res) {
+		switch (res)
+		{
 		case IRQ_WAKE_THREAD:
 			/*
 			 * Catch drivers which return WAKE_THREAD but
 			 * did not set up a thread function
 			 */
-			if (unlikely(!action->thread_fn)) {
+			if (unlikely(!action->thread_fn))
+			{
 				warn_no_thread(irq, action);
 				break;
 			}
@@ -203,10 +210,12 @@ irqreturn_t handle_irq_event(struct irq_desc *desc)
 {
 	irqreturn_t ret;
 
+	// 清除pending状态，变为inprogress状态
 	desc->istate &= ~IRQS_PENDING;
 	irqd_set(&desc->irq_data, IRQD_IRQ_INPROGRESS);
 	raw_spin_unlock(&desc->lock);
 
+	// 调用action list
 	ret = handle_irq_event_percpu(desc);
 
 	raw_spin_lock(&desc->lock);
@@ -229,12 +238,22 @@ int __init set_handle_irq(void (*handle_irq)(struct pt_regs *))
  *                           entry accounting themselves
  * @regs:	Register file coming from the low-level handling code
  */
+/*
+	通用的中断处理入口，但是好像只有arm架构调用到这里
+*/
 asmlinkage void noinstr generic_handle_arch_irq(struct pt_regs *regs)
 {
 	struct pt_regs *old_regs;
 
+	/*
+		调用preempt_count_sub(HARDIRQ_OFFSET)，给preemption count的hardirq count位加1
+		preemption count是struct thread_info结构体成员，被用来判断当前进程是否可以被抢占
+	*/
 	irq_enter();
 	old_regs = set_irq_regs(regs);
+	/*
+		irq chip driver调用set_handle_irq，为handle_arch_irq设置root interrupt controller处理函数
+	*/
 	handle_arch_irq(regs);
 	set_irq_regs(old_regs);
 	irq_exit();

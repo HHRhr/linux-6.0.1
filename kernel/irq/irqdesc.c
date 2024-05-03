@@ -55,19 +55,21 @@ static void __init init_irq_default_affinity(void)
 static int alloc_masks(struct irq_desc *desc, int node)
 {
 	if (!zalloc_cpumask_var_node(&desc->irq_common_data.affinity,
-				     GFP_KERNEL, node))
+								 GFP_KERNEL, node))
 		return -ENOMEM;
 
 #ifdef CONFIG_GENERIC_IRQ_EFFECTIVE_AFF_MASK
 	if (!zalloc_cpumask_var_node(&desc->irq_common_data.effective_affinity,
-				     GFP_KERNEL, node)) {
+								 GFP_KERNEL, node))
+	{
 		free_cpumask_var(desc->irq_common_data.affinity);
 		return -ENOMEM;
 	}
 #endif
 
 #ifdef CONFIG_GENERIC_PENDING_IRQ
-	if (!zalloc_cpumask_var_node(&desc->pending_mask, GFP_KERNEL, node)) {
+	if (!zalloc_cpumask_var_node(&desc->pending_mask, GFP_KERNEL, node))
+	{
 #ifdef CONFIG_GENERIC_IRQ_EFFECTIVE_AFF_MASK
 		free_cpumask_var(desc->irq_common_data.effective_affinity);
 #endif
@@ -79,7 +81,7 @@ static int alloc_masks(struct irq_desc *desc, int node)
 }
 
 static void desc_smp_init(struct irq_desc *desc, int node,
-			  const struct cpumask *affinity)
+						  const struct cpumask *affinity)
 {
 	if (!affinity)
 		affinity = irq_default_affinity;
@@ -97,11 +99,11 @@ static void desc_smp_init(struct irq_desc *desc, int node,
 static inline int
 alloc_masks(struct irq_desc *desc, int node) { return 0; }
 static inline void
-desc_smp_init(struct irq_desc *desc, int node, const struct cpumask *affinity) { }
+desc_smp_init(struct irq_desc *desc, int node, const struct cpumask *affinity) {}
 #endif
 
 static void desc_set_defaults(unsigned int irq, struct irq_desc *desc, int node,
-			      const struct cpumask *affinity, struct module *owner)
+							  const struct cpumask *affinity, struct module *owner)
 {
 	int cpu;
 
@@ -122,8 +124,7 @@ static void desc_set_defaults(unsigned int irq, struct irq_desc *desc, int node,
 	desc->tot_count = 0;
 	desc->name = NULL;
 	desc->owner = owner;
-	for_each_possible_cpu(cpu)
-		*per_cpu_ptr(desc->kstat_irqs, cpu) = 0;
+	for_each_possible_cpu(cpu) * per_cpu_ptr(desc->kstat_irqs, cpu) = 0;
 	desc_smp_init(desc, node, affinity);
 }
 
@@ -133,6 +134,10 @@ EXPORT_SYMBOL_GPL(nr_irqs);
 static DEFINE_MUTEX(sparse_irq_lock);
 static DECLARE_BITMAP(allocated_irqs, IRQ_BITMAP_BITS);
 
+/*
+	如果打开CONFIG_SPARSE_IRQ选项，系统使用Radix tree来保存中断描述符DB，同样使用IRQ number作为索引
+	相比数组形式的静态表，这种方式更为灵活，不浪费空间
+*/
 #ifdef CONFIG_SPARSE_IRQ
 
 static void irq_kobj_release(struct kobject *kobj);
@@ -141,17 +146,18 @@ static void irq_kobj_release(struct kobject *kobj);
 static struct kobject *irq_kobj_base;
 
 #define IRQ_ATTR_RO(_name) \
-static struct kobj_attribute _name##_attr = __ATTR_RO(_name)
+	static struct kobj_attribute _name##_attr = __ATTR_RO(_name)
 
 static ssize_t per_cpu_count_show(struct kobject *kobj,
-				  struct kobj_attribute *attr, char *buf)
+								  struct kobj_attribute *attr, char *buf)
 {
 	struct irq_desc *desc = container_of(kobj, struct irq_desc, kobj);
 	ssize_t ret = 0;
 	char *p = "";
 	int cpu;
 
-	for_each_possible_cpu(cpu) {
+	for_each_possible_cpu(cpu)
+	{
 		unsigned int c = irq_desc_kstat_cpu(desc, cpu);
 
 		ret += scnprintf(buf + ret, PAGE_SIZE - ret, "%s%u", p, c);
@@ -164,15 +170,16 @@ static ssize_t per_cpu_count_show(struct kobject *kobj,
 IRQ_ATTR_RO(per_cpu_count);
 
 static ssize_t chip_name_show(struct kobject *kobj,
-			      struct kobj_attribute *attr, char *buf)
+							  struct kobj_attribute *attr, char *buf)
 {
 	struct irq_desc *desc = container_of(kobj, struct irq_desc, kobj);
 	ssize_t ret = 0;
 
 	raw_spin_lock_irq(&desc->lock);
-	if (desc->irq_data.chip && desc->irq_data.chip->name) {
+	if (desc->irq_data.chip && desc->irq_data.chip->name)
+	{
 		ret = scnprintf(buf, PAGE_SIZE, "%s\n",
-				desc->irq_data.chip->name);
+						desc->irq_data.chip->name);
 	}
 	raw_spin_unlock_irq(&desc->lock);
 
@@ -181,7 +188,7 @@ static ssize_t chip_name_show(struct kobject *kobj,
 IRQ_ATTR_RO(chip_name);
 
 static ssize_t hwirq_show(struct kobject *kobj,
-			  struct kobj_attribute *attr, char *buf)
+						  struct kobj_attribute *attr, char *buf)
 {
 	struct irq_desc *desc = container_of(kobj, struct irq_desc, kobj);
 	ssize_t ret = 0;
@@ -196,39 +203,37 @@ static ssize_t hwirq_show(struct kobject *kobj,
 IRQ_ATTR_RO(hwirq);
 
 static ssize_t type_show(struct kobject *kobj,
-			 struct kobj_attribute *attr, char *buf)
+						 struct kobj_attribute *attr, char *buf)
 {
 	struct irq_desc *desc = container_of(kobj, struct irq_desc, kobj);
 	ssize_t ret = 0;
 
 	raw_spin_lock_irq(&desc->lock);
 	ret = sprintf(buf, "%s\n",
-		      irqd_is_level_type(&desc->irq_data) ? "level" : "edge");
+				  irqd_is_level_type(&desc->irq_data) ? "level" : "edge");
 	raw_spin_unlock_irq(&desc->lock);
 
 	return ret;
-
 }
 IRQ_ATTR_RO(type);
 
 static ssize_t wakeup_show(struct kobject *kobj,
-			   struct kobj_attribute *attr, char *buf)
+						   struct kobj_attribute *attr, char *buf)
 {
 	struct irq_desc *desc = container_of(kobj, struct irq_desc, kobj);
 	ssize_t ret = 0;
 
 	raw_spin_lock_irq(&desc->lock);
 	ret = sprintf(buf, "%s\n",
-		      irqd_is_wakeup_set(&desc->irq_data) ? "enabled" : "disabled");
+				  irqd_is_wakeup_set(&desc->irq_data) ? "enabled" : "disabled");
 	raw_spin_unlock_irq(&desc->lock);
 
 	return ret;
-
 }
 IRQ_ATTR_RO(wakeup);
 
 static ssize_t name_show(struct kobject *kobj,
-			 struct kobj_attribute *attr, char *buf)
+						 struct kobj_attribute *attr, char *buf)
 {
 	struct irq_desc *desc = container_of(kobj, struct irq_desc, kobj);
 	ssize_t ret = 0;
@@ -243,7 +248,7 @@ static ssize_t name_show(struct kobject *kobj,
 IRQ_ATTR_RO(name);
 
 static ssize_t actions_show(struct kobject *kobj,
-			    struct kobj_attribute *attr, char *buf)
+							struct kobj_attribute *attr, char *buf)
 {
 	struct irq_desc *desc = container_of(kobj, struct irq_desc, kobj);
 	struct irqaction *action;
@@ -251,9 +256,10 @@ static ssize_t actions_show(struct kobject *kobj,
 	char *p = "";
 
 	raw_spin_lock_irq(&desc->lock);
-	for_each_action_of_desc(desc, action) {
+	for_each_action_of_desc(desc, action)
+	{
 		ret += scnprintf(buf + ret, PAGE_SIZE - ret, "%s%s",
-				 p, action->name);
+						 p, action->name);
 		p = ",";
 	}
 	raw_spin_unlock_irq(&desc->lock);
@@ -273,19 +279,19 @@ static struct attribute *irq_attrs[] = {
 	&wakeup_attr.attr,
 	&name_attr.attr,
 	&actions_attr.attr,
-	NULL
-};
+	NULL};
 ATTRIBUTE_GROUPS(irq);
 
 static struct kobj_type irq_kobj_type = {
-	.release	= irq_kobj_release,
-	.sysfs_ops	= &kobj_sysfs_ops,
+	.release = irq_kobj_release,
+	.sysfs_ops = &kobj_sysfs_ops,
 	.default_groups = irq_groups,
 };
 
 static void irq_sysfs_add(int irq, struct irq_desc *desc)
 {
-	if (irq_kobj_base) {
+	if (irq_kobj_base)
+	{
 		/*
 		 * Continue even in case of failure as this is nothing
 		 * crucial.
@@ -316,7 +322,8 @@ static int __init irq_sysfs_init(void)
 	irq_lock_sparse();
 
 	irq_kobj_base = kobject_create_and_add("irq", kernel_kobj);
-	if (!irq_kobj_base) {
+	if (!irq_kobj_base)
+	{
 		irq_unlock_sparse();
 		return -ENOMEM;
 	}
@@ -333,7 +340,7 @@ postcore_initcall(irq_sysfs_init);
 #else /* !CONFIG_SYSFS */
 
 static struct kobj_type irq_kobj_type = {
-	.release	= irq_kobj_release,
+	.release = irq_kobj_release,
 };
 
 static void irq_sysfs_add(int irq, struct irq_desc *desc) {}
@@ -373,7 +380,7 @@ static void free_masks(struct irq_desc *desc)
 #endif
 }
 #else
-static inline void free_masks(struct irq_desc *desc) { }
+static inline void free_masks(struct irq_desc *desc) {}
 #endif
 
 void irq_lock_sparse(void)
@@ -387,8 +394,8 @@ void irq_unlock_sparse(void)
 }
 
 static struct irq_desc *alloc_desc(int irq, int node, unsigned int flags,
-				   const struct cpumask *affinity,
-				   struct module *owner)
+								   const struct cpumask *affinity,
+								   struct module *owner)
 {
 	struct irq_desc *desc;
 
@@ -467,28 +474,33 @@ static void free_desc(unsigned int irq)
 }
 
 static int alloc_descs(unsigned int start, unsigned int cnt, int node,
-		       const struct irq_affinity_desc *affinity,
-		       struct module *owner)
+					   const struct irq_affinity_desc *affinity,
+					   struct module *owner)
 {
 	struct irq_desc *desc;
 	int i;
 
 	/* Validate affinity mask(s) */
-	if (affinity) {
-		for (i = 0; i < cnt; i++) {
+	if (affinity)
+	{
+		for (i = 0; i < cnt; i++)
+		{
 			if (cpumask_empty(&affinity[i].mask))
 				return -EINVAL;
 		}
 	}
 
-	for (i = 0; i < cnt; i++) {
+	for (i = 0; i < cnt; i++)
+	{
 		const struct cpumask *mask = NULL;
 		unsigned int flags = 0;
 
-		if (affinity) {
-			if (affinity->is_managed) {
+		if (affinity)
+		{
+			if (affinity->is_managed)
+			{
 				flags = IRQD_AFFINITY_MANAGED |
-					IRQD_MANAGED_SHUTDOWN;
+						IRQD_MANAGED_SHUTDOWN;
 			}
 			mask = &affinity->mask;
 			node = cpu_to_node(cpumask_first(mask));
@@ -519,6 +531,9 @@ static int irq_expand_nr_irqs(unsigned int nr)
 	return 0;
 }
 
+/*
+	使用基度树时的irq desc初始化入口
+*/
 int __init early_irq_init(void)
 {
 	int i, initcnt, node = first_online_node;
@@ -527,9 +542,13 @@ int __init early_irq_init(void)
 	init_irq_default_affinity();
 
 	/* Let arch update nr_irqs and return the nr of preallocated irqs */
+	/*
+		架构可决定初始化的nr_irqs值（preallocated irqs）
+	*/
 	initcnt = arch_probe_nr_irqs();
+
 	printk(KERN_INFO "NR_IRQS: %d, nr_irqs: %d, preallocated irqs: %d\n",
-	       NR_IRQS, nr_irqs, initcnt);
+		   NR_IRQS, nr_irqs, initcnt);
 
 	if (WARN_ON(nr_irqs > IRQ_BITMAP_BITS))
 		nr_irqs = IRQ_BITMAP_BITS;
@@ -537,10 +556,19 @@ int __init early_irq_init(void)
 	if (WARN_ON(initcnt > IRQ_BITMAP_BITS))
 		initcnt = IRQ_BITMAP_BITS;
 
+	/*
+		nr_irqs保存当前最大IRQ NR
+
+		initcnt（初始值） <=  nr_irqs(当前值) <= IRQ_BITMAP_BITS（实际最大值） = NR_IRQS（线性最大值）或 NR_IRQS + 8196（基度树最大值）
+	*/
 	if (initcnt > nr_irqs)
 		nr_irqs = initcnt;
 
-	for (i = 0; i < initcnt; i++) {
+	/*
+		预分配initcnt个中断描述符，initcnt不能大于IRQ_BITMAP_BITS，即NR_IRQS + 8196
+	*/
+	for (i = 0; i < initcnt; i++)
+	{
 		desc = alloc_desc(i, node, 0, NULL, NULL);
 		set_bit(i, allocated_irqs);
 		irq_insert_desc(i, desc);
@@ -550,13 +578,24 @@ int __init early_irq_init(void)
 
 #else /* !CONFIG_SPARSE_IRQ */
 
+/*
+	中断描述符DB，以数组形式存放系统中所有的中断描述符信息
+	IRQ number作为IRQ desc的index
+
+
+	..另，一些语法知识
+	[0 ... NR_IRQS - 1]：表示数组所有元素都被初始化为后面的值
+	.handle_irq = handle_bad_irq：默认handler，用于处理无效或未定义的中断
+	.depth = 1：中断管理中，每次调用disable_irq()函数会增加.depth的值，而每次调用enable_irq()会减少.depth的值。
+		只有当.depth的值为0时，中断才被允许发生，默认值为1表示所有中断都被禁用，避免在系统还未完全准备好时发生不可控的中断
+	lock：自旋锁，用于在多核环境中同步对中断描述符的访问
+*/
 struct irq_desc irq_desc[NR_IRQS] __cacheline_aligned_in_smp = {
-	[0 ... NR_IRQS-1] = {
-		.handle_irq	= handle_bad_irq,
-		.depth		= 1,
-		.lock		= __RAW_SPIN_LOCK_UNLOCKED(irq_desc->lock),
-	}
-};
+	[0 ... NR_IRQS - 1] = {
+		.handle_irq = handle_bad_irq,
+		.depth = 1,
+		.lock = __RAW_SPIN_LOCK_UNLOCKED(irq_desc->lock),
+	}};
 
 int __init early_irq_init(void)
 {
@@ -570,7 +609,8 @@ int __init early_irq_init(void)
 	desc = irq_desc;
 	count = ARRAY_SIZE(irq_desc);
 
-	for (i = 0; i < count; i++) {
+	for (i = 0; i < count; i++)
+	{
 		desc[i].kstat_irqs = alloc_percpu(unsigned int);
 		alloc_masks(&desc[i], node);
 		raw_spin_lock_init(&desc[i].lock);
@@ -584,7 +624,7 @@ int __init early_irq_init(void)
 
 struct irq_desc *irq_to_desc(unsigned int irq)
 {
-	return (irq < NR_IRQS) ? irq_desc + irq : NULL;
+	return (irq < NR_IRQS) ? irq_desc + irq : NULL; // 使用irq作为irq_desc的索引
 }
 EXPORT_SYMBOL(irq_to_desc);
 
@@ -598,18 +638,22 @@ static void free_desc(unsigned int irq)
 	raw_spin_unlock_irqrestore(&desc->lock, flags);
 }
 
+/*
+	批量分配irq_desc，忽略不必要的参数，例如node，在Radix tree中才用到
+*/
 static inline int alloc_descs(unsigned int start, unsigned int cnt, int node,
-			      const struct irq_affinity_desc *affinity,
-			      struct module *owner)
+							  const struct irq_affinity_desc *affinity,
+							  struct module *owner)
 {
 	u32 i;
 
-	for (i = 0; i < cnt; i++) {
+	for (i = 0; i < cnt; i++)
+	{
 		struct irq_desc *desc = irq_to_desc(start + i);
 
 		desc->owner = owner;
 	}
-	bitmap_set(allocated_irqs, start, cnt);
+	bitmap_set(allocated_irqs, start, cnt); // 设置bitmap占用标志
 	return start;
 }
 
@@ -657,7 +701,11 @@ int handle_irq_desc(struct irq_desc *desc)
  *
  * 		This function must be called from an IRQ context with irq regs
  * 		initialized.
-  */
+ */
+/*
+	中断处理入口，接受IRQ number，最后调用到desc -> handle_irq对具体的IRQ desc进行中断处理
+	出差测试写kprobe监听硬件触发中断时就是监听这里
+*/
 int generic_handle_irq(unsigned int irq)
 {
 	return handle_irq_desc(irq_to_desc(irq));
@@ -761,18 +809,21 @@ EXPORT_SYMBOL_GPL(irq_free_descs);
  */
 int __ref
 __irq_alloc_descs(int irq, unsigned int from, unsigned int cnt, int node,
-		  struct module *owner, const struct irq_affinity_desc *affinity)
+				  struct module *owner, const struct irq_affinity_desc *affinity)
 {
 	int start, ret;
 
 	if (!cnt)
 		return -EINVAL;
 
-	if (irq >= 0) {
+	if (irq >= 0)
+	{
 		if (from > irq)
 			return -EINVAL;
 		from = irq;
-	} else {
+	}
+	else
+	{
 		/*
 		 * For interrupts which are freely allocated the
 		 * architecture can force a lower bound to the @from
@@ -784,12 +835,13 @@ __irq_alloc_descs(int irq, unsigned int from, unsigned int cnt, int node,
 	mutex_lock(&sparse_irq_lock);
 
 	start = bitmap_find_next_zero_area(allocated_irqs, IRQ_BITMAP_BITS,
-					   from, cnt, 0);
+									   from, cnt, 0);
 	ret = -EEXIST;
-	if (irq >=0 && start != irq)
+	if (irq >= 0 && start != irq)
 		goto unlock;
 
-	if (start + cnt > nr_irqs) {
+	if (start + cnt > nr_irqs)
+	{
 		ret = irq_expand_nr_irqs(start + cnt);
 		if (ret)
 			goto unlock;
@@ -814,18 +866,20 @@ unsigned int irq_get_next_irq(unsigned int offset)
 
 struct irq_desc *
 __irq_get_desc_lock(unsigned int irq, unsigned long *flags, bool bus,
-		    unsigned int check)
+					unsigned int check)
 {
 	struct irq_desc *desc = irq_to_desc(irq);
 
-	if (desc) {
-		if (check & _IRQ_DESC_CHECK) {
+	if (desc)
+	{
+		if (check & _IRQ_DESC_CHECK)
+		{
 			if ((check & _IRQ_DESC_PERCPU) &&
-			    !irq_settings_is_per_cpu_devid(desc))
+				!irq_settings_is_per_cpu_devid(desc))
 				return NULL;
 
 			if (!(check & _IRQ_DESC_PERCPU) &&
-			    irq_settings_is_per_cpu_devid(desc))
+				irq_settings_is_per_cpu_devid(desc))
 				return NULL;
 		}
 
@@ -845,7 +899,7 @@ void __irq_put_desc_unlock(struct irq_desc *desc, unsigned long flags, bool bus)
 }
 
 int irq_set_percpu_devid_partition(unsigned int irq,
-				   const struct cpumask *affinity)
+								   const struct cpumask *affinity)
 {
 	struct irq_desc *desc = irq_to_desc(irq);
 
@@ -906,8 +960,7 @@ unsigned int kstat_irqs_cpu(unsigned int irq, int cpu)
 {
 	struct irq_desc *desc = irq_to_desc(irq);
 
-	return desc && desc->kstat_irqs ?
-			*per_cpu_ptr(desc->kstat_irqs, cpu) : 0;
+	return desc && desc->kstat_irqs ? *per_cpu_ptr(desc->kstat_irqs, cpu) : 0;
 }
 
 static bool irq_is_nmi(struct irq_desc *desc)
@@ -924,8 +977,8 @@ static unsigned int kstat_irqs(unsigned int irq)
 	if (!desc || !desc->kstat_irqs)
 		return 0;
 	if (!irq_settings_is_per_cpu_devid(desc) &&
-	    !irq_settings_is_per_cpu(desc) &&
-	    !irq_is_nmi(desc))
+		!irq_settings_is_per_cpu(desc) &&
+		!irq_is_nmi(desc))
 		return data_race(desc->tot_count);
 
 	for_each_possible_cpu(cpu)
@@ -955,11 +1008,12 @@ unsigned int kstat_irqs_usr(unsigned int irq)
 
 #ifdef CONFIG_LOCKDEP
 void __irq_set_lockdep_class(unsigned int irq, struct lock_class_key *lock_class,
-			     struct lock_class_key *request_class)
+							 struct lock_class_key *request_class)
 {
 	struct irq_desc *desc = irq_to_desc(irq);
 
-	if (desc) {
+	if (desc)
+	{
 		lockdep_set_class(&desc->lock, lock_class);
 		lockdep_set_class(&desc->request_mutex, request_class);
 	}

@@ -32,7 +32,8 @@ static void resend_irqs(struct tasklet_struct *unused)
 	struct irq_desc *desc;
 	int irq;
 
-	while (!bitmap_empty(irqs_resend, nr_irqs)) {
+	while (!bitmap_empty(irqs_resend, nr_irqs))
+	{
 		irq = find_first_bit(irqs_resend, nr_irqs);
 		clear_bit(irq, irqs_resend);
 		desc = irq_to_desc(irq);
@@ -63,7 +64,8 @@ static int irq_sw_resend(struct irq_desc *desc)
 	 * irq we need to be careful, because we cannot trigger it
 	 * directly.
 	 */
-	if (irq_settings_is_nested_thread(desc)) {
+	if (irq_settings_is_nested_thread(desc))
+	{
 		/*
 		 * If the parent_irq is valid, we retrigger the parent,
 		 * otherwise we do nothing.
@@ -103,6 +105,15 @@ static int try_retrigger(struct irq_desc *desc)
  *
  * Is called with interrupts disabled and desc->lock held.
  */
+/*
+	什么情况下需要重发？
+		边缘触发类型的中断被送入CPU后被ack但没法立即处理，其内核状态为pending，而硬件状态已是非pending状态，
+			如果某CPU禁用了该irq，这个irq实际没有被处理，需要在重新启用后，检测是否是pending状态，触发重发逻辑
+
+	为什么水平中断不需要重发？
+		水平中断在ack后，硬件上仍处于pending状态，只有在完全处理完中断后才信号才消失
+			在disable后，irq不能被处理，在enable后，interrupt controller的寄存器仍处于pending状态，会重新给CPU发中断
+*/
 int check_irq_resend(struct irq_desc *desc, bool inject)
 {
 	int err = 0;
@@ -112,17 +123,26 @@ int check_irq_resend(struct irq_desc *desc, bool inject)
 	 * are resent by hardware when they are still active. Clear the
 	 * pending bit so suspend/resume does not get confused.
 	 */
-	if (irq_settings_is_level(desc)) {
+	// 水平中断不存在resend的问题
+	if (irq_settings_is_level(desc))
+	{
 		desc->istate &= ~IRQS_PENDING;
 		return -EINVAL;
 	}
 
-	if (desc->istate & IRQS_REPLAY)
+	if (desc->istate & IRQS_REPLAY) // 如果已经设定resend的flag，退出就OK了，这个应该和irq的enable disable能多层嵌套相关
 		return -EBUSY;
 
 	if (!(desc->istate & IRQS_PENDING) && !inject)
 		return 0;
 
+	/*
+		下面是重发逻辑
+			清除IRQS_PENDING
+			采用硬件重发
+			失败就采用软件重发
+			设置为IRQS_REPLAY状态
+	*/
 	desc->istate &= ~IRQS_PENDING;
 
 	if (!try_retrigger(desc))

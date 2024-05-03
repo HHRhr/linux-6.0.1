@@ -38,6 +38,9 @@ struct irqaction chained_action = {
  *	@irq:	irq number
  *	@chip:	pointer to irq chip description structure
  */
+/*
+	chip driver的map回调 -> irq_domain_set_info -> irq_set_chip_and_handler_name -> irq_set_chip
+*/
 int irq_set_chip(unsigned int irq, const struct irq_chip *chip)
 {
 	unsigned long flags;
@@ -52,6 +55,13 @@ int irq_set_chip(unsigned int irq, const struct irq_chip *chip)
 	 * For !CONFIG_SPARSE_IRQ make the irq show up in
 	 * allocated_irqs.
 	 */
+	/*
+		教程描述：irq number有静态表格定义的，也有radix tree类型的。对于静态定义的中断描述符，没有alloc的概念
+		所以这里需要对于线性的irq desc结构设置bitmap占用标志
+
+		TODO但实际上，线性虽然只有批量分配接口alloc_descs，但也能设置cnt=1来单个分配，且有设置bitmap操作，
+			至于再次设置bitmap，可能是为确保bitmap处于最新状态，或是对irq_set_chip的使用场景理解不到位？？
+	*/
 	irq_mark_irq(irq);
 	return 0;
 }
@@ -106,7 +116,7 @@ EXPORT_SYMBOL(irq_set_handler_data);
  *	Set the MSI descriptor entry for an irq at offset
  */
 int irq_set_msi_desc_off(unsigned int irq_base, unsigned int irq_offset,
-			 struct msi_desc *entry)
+						 struct msi_desc *entry)
 {
 	unsigned long flags;
 	struct irq_desc *desc = irq_get_desc_lock(irq_base + irq_offset, &flags, IRQ_GET_DESC_CHECK_GLOBAL);
@@ -180,7 +190,8 @@ static void irq_state_set_started(struct irq_desc *desc)
 	irqd_set(&desc->irq_data, IRQD_IRQ_STARTED);
 }
 
-enum {
+enum
+{
 	IRQ_STARTUP_NORMAL,
 	IRQ_STARTUP_MANAGED,
 	IRQ_STARTUP_ABORT,
@@ -189,7 +200,7 @@ enum {
 #ifdef CONFIG_SMP
 static int
 __irq_startup_managed(struct irq_desc *desc, const struct cpumask *aff,
-		      bool force)
+					  bool force)
 {
 	struct irq_data *d = irq_desc_get_irq_data(desc);
 
@@ -198,7 +209,8 @@ __irq_startup_managed(struct irq_desc *desc, const struct cpumask *aff,
 
 	irqd_clr_managed_shutdown(d);
 
-	if (cpumask_any_and(aff, cpu_online_mask) >= nr_cpu_ids) {
+	if (cpumask_any_and(aff, cpu_online_mask) >= nr_cpu_ids)
+	{
 		/*
 		 * Catch code which fiddles with enable_irq() on a managed
 		 * and potentially shutdown IRQ. Chained interrupt
@@ -226,7 +238,7 @@ __irq_startup_managed(struct irq_desc *desc, const struct cpumask *aff,
 #else
 static __always_inline int
 __irq_startup_managed(struct irq_desc *desc, const struct cpumask *aff,
-		      bool force)
+					  bool force)
 {
 	return IRQ_STARTUP_NORMAL;
 }
@@ -240,11 +252,14 @@ static int __irq_startup(struct irq_desc *desc)
 	/* Warn if this interrupt is not activated but try nevertheless */
 	WARN_ON_ONCE(!irqd_is_activated(d));
 
-	if (d->chip->irq_startup) {
+	if (d->chip->irq_startup)
+	{
 		ret = d->chip->irq_startup(d);
 		irq_state_clr_disabled(desc);
 		irq_state_clr_masked(desc);
-	} else {
+	}
+	else
+	{
 		irq_enable(desc);
 	}
 	irq_state_set_started(desc);
@@ -259,10 +274,14 @@ int irq_startup(struct irq_desc *desc, bool resend, bool force)
 
 	desc->depth = 0;
 
-	if (irqd_is_started(d)) {
+	if (irqd_is_started(d))
+	{
 		irq_enable(desc);
-	} else {
-		switch (__irq_startup_managed(desc, aff, force)) {
+	}
+	else
+	{
+		switch (__irq_startup_managed(desc, aff, force))
+		{
 		case IRQ_STARTUP_NORMAL:
 			if (d->chip->flags & IRQCHIP_AFFINITY_PRE_STARTUP)
 				irq_setup_affinity(desc);
@@ -305,19 +324,22 @@ static void __irq_disable(struct irq_desc *desc, bool mask);
 
 void irq_shutdown(struct irq_desc *desc)
 {
-	if (irqd_is_started(&desc->irq_data)) {
+	if (irqd_is_started(&desc->irq_data))
+	{
 		desc->depth = 1;
-		if (desc->irq_data.chip->irq_shutdown) {
+		if (desc->irq_data.chip->irq_shutdown)
+		{
 			desc->irq_data.chip->irq_shutdown(&desc->irq_data);
 			irq_state_set_disabled(desc);
 			irq_state_set_masked(desc);
-		} else {
+		}
+		else
+		{
 			__irq_disable(desc, true);
 		}
 		irq_state_clr_started(desc);
 	}
 }
-
 
 void irq_shutdown_and_deactivate(struct irq_desc *desc)
 {
@@ -333,14 +355,20 @@ void irq_shutdown_and_deactivate(struct irq_desc *desc)
 
 void irq_enable(struct irq_desc *desc)
 {
-	if (!irqd_irq_disabled(&desc->irq_data)) {
+	if (!irqd_irq_disabled(&desc->irq_data))
+	{
 		unmask_irq(desc);
-	} else {
+	}
+	else
+	{
 		irq_state_clr_disabled(desc);
-		if (desc->irq_data.chip->irq_enable) {
+		if (desc->irq_data.chip->irq_enable)
+		{
 			desc->irq_data.chip->irq_enable(&desc->irq_data);
 			irq_state_clr_masked(desc);
-		} else {
+		}
+		else
+		{
 			unmask_irq(desc);
 		}
 	}
@@ -348,15 +376,21 @@ void irq_enable(struct irq_desc *desc)
 
 static void __irq_disable(struct irq_desc *desc, bool mask)
 {
-	if (irqd_irq_disabled(&desc->irq_data)) {
+	if (irqd_irq_disabled(&desc->irq_data))
+	{
 		if (mask)
 			mask_irq(desc);
-	} else {
+	}
+	else
+	{
 		irq_state_set_disabled(desc);
-		if (desc->irq_data.chip->irq_disable) {
+		if (desc->irq_data.chip->irq_disable)
+		{
 			desc->irq_data.chip->irq_disable(&desc->irq_data);
 			irq_state_set_masked(desc);
-		} else if (mask) {
+		}
+		else if (mask)
+		{
 			mask_irq(desc);
 		}
 	}
@@ -407,10 +441,13 @@ void irq_percpu_disable(struct irq_desc *desc, unsigned int cpu)
 
 static inline void mask_ack_irq(struct irq_desc *desc)
 {
-	if (desc->irq_data.chip->irq_mask_ack) {
+	if (desc->irq_data.chip->irq_mask_ack)
+	{
 		desc->irq_data.chip->irq_mask_ack(&desc->irq_data);
 		irq_state_set_masked(desc);
-	} else {
+	}
+	else
+	{
 		mask_irq(desc);
 		if (desc->irq_data.chip->irq_ack)
 			desc->irq_data.chip->irq_ack(&desc->irq_data);
@@ -422,7 +459,8 @@ void mask_irq(struct irq_desc *desc)
 	if (irqd_irq_masked(&desc->irq_data))
 		return;
 
-	if (desc->irq_data.chip->irq_mask) {
+	if (desc->irq_data.chip->irq_mask)
+	{
 		desc->irq_data.chip->irq_mask(&desc->irq_data);
 		irq_state_set_masked(desc);
 	}
@@ -433,7 +471,8 @@ void unmask_irq(struct irq_desc *desc)
 	if (!irqd_irq_masked(&desc->irq_data))
 		return;
 
-	if (desc->irq_data.chip->irq_unmask) {
+	if (desc->irq_data.chip->irq_unmask)
+	{
 		desc->irq_data.chip->irq_unmask(&desc->irq_data);
 		irq_state_clr_masked(desc);
 	}
@@ -470,7 +509,8 @@ void handle_nested_irq(unsigned int irq)
 	desc->istate &= ~(IRQS_REPLAY | IRQS_WAITING);
 
 	action = desc->action;
-	if (unlikely(!action || irqd_irq_disabled(&desc->irq_data))) {
+	if (unlikely(!action || irqd_irq_disabled(&desc->irq_data)))
+	{
 		desc->istate |= IRQS_PENDING;
 		goto out_unlock;
 	}
@@ -546,7 +586,8 @@ void handle_simple_irq(struct irq_desc *desc)
 
 	desc->istate &= ~(IRQS_REPLAY | IRQS_WAITING);
 
-	if (unlikely(!desc->action || irqd_irq_disabled(&desc->irq_data))) {
+	if (unlikely(!desc->action || irqd_irq_disabled(&desc->irq_data)))
+	{
 		desc->istate |= IRQS_PENDING;
 		goto out_unlock;
 	}
@@ -581,7 +622,8 @@ void handle_untracked_irq(struct irq_desc *desc)
 
 	desc->istate &= ~(IRQS_REPLAY | IRQS_WAITING);
 
-	if (unlikely(!desc->action || irqd_irq_disabled(&desc->irq_data))) {
+	if (unlikely(!desc->action || irqd_irq_disabled(&desc->irq_data)))
+	{
 		desc->istate |= IRQS_PENDING;
 		goto out_unlock;
 	}
@@ -613,8 +655,19 @@ static void cond_unmask_irq(struct irq_desc *desc)
 	 *   spurious interrupt or a primary handler handling it
 	 *   completely).
 	 */
+	/*
+		能unmank的情况
+			1.没有设置IRQF_ONESHOT标志
+			2.设置了IRQF_ONESHOT但没有触发thread，可能是spurious interrupt，或者specific handler中已经处理完成
+
+		为什么有IRQF_ONESHOT的概念？
+			当使用request_threaded_irq函数注册一个中断时，可以通过设置IRQF_ONESHOT标志
+				来指定中断处理程序在中断线路被屏蔽的情况下运行，直到处理程序表示处理已完成。
+				这样可以避免中断风暴、数据竞争等性能问题
+
+	*/
 	if (!irqd_irq_disabled(&desc->irq_data) &&
-	    irqd_irq_masked(&desc->irq_data) && !desc->threads_oneshot)
+		irqd_irq_masked(&desc->irq_data) && !desc->threads_oneshot)
 		unmask_irq(desc);
 }
 
@@ -627,11 +680,31 @@ static void cond_unmask_irq(struct irq_desc *desc)
  *	it after the associated handler has acknowledged the device, so the
  *	interrupt line is back to inactive.
  */
+/*
+	当interrupt controller检测到了高电平信号，会通过中断signal线向CPU触发中断。
+	这时候，对中断控制器进行ack并不能改变interrupt request signal线上的电平状态，
+	一直要等到执行具体的中断服务程序（specific handler），对外设进行ack的时候，电平信号才会恢复成低电平。
+	在对外设ack之前，中断状态一直是pending的，如果没有mask中断，那么中断控制器就会assert CPU。
+*/
 void handle_level_irq(struct irq_desc *desc)
 {
 	raw_spin_lock(&desc->lock);
+
+	/*
+		考虑CPU<------>interrupt controller<------>device这样的连接方式
+		high level handler主要是和interrupt controller交互，而specific handler（request_irq注册的那个）是和device进行交互
+		当外设上发生事件时，interrupt request line始终处于触发状态，除非specific handler中清除了外设的状态寄存器
+
+		在边缘触发中，为防止中断丢失，只能ack中断
+		而水平触发中，需要ack+mask，由于外设的interrupt request line一致处于触发状态，单ack清除状态寄存器的操作有可能无效
+			需要mask住该中断，使中断控制器不再转发该interrupt source来的中断，此时，所有的CPU都不会感知到该中断
+	*/
 	mask_ack_irq(desc);
 
+	/*
+		TODO判断比较复杂，包括电源管理、轮询等，暂时没有深究
+		简单来看，如果当前已处于inprogress状态时，直接退出
+	*/
 	if (!irq_may_run(desc))
 		goto out_unlock;
 
@@ -641,7 +714,11 @@ void handle_level_irq(struct irq_desc *desc)
 	 * If its disabled or no action available
 	 * keep it masked and get out of here
 	 */
-	if (unlikely(!desc->action || irqd_irq_disabled(&desc->irq_data))) {
+	/*
+		和边缘触发一样，没有specific handler或者irq被disable了，保持一个pending状态就退出
+	*/
+	if (unlikely(!desc->action || irqd_irq_disabled(&desc->irq_data)))
+	{
 		desc->istate |= IRQS_PENDING;
 		goto out_unlock;
 	}
@@ -649,6 +726,7 @@ void handle_level_irq(struct irq_desc *desc)
 	kstat_incr_irqs_this_cpu(desc);
 	handle_irq_event(desc);
 
+	// 非threads_oneshot情况下，才unmask
 	cond_unmask_irq(desc);
 
 out_unlock:
@@ -658,7 +736,8 @@ EXPORT_SYMBOL_GPL(handle_level_irq);
 
 static void cond_unmask_eoi_irq(struct irq_desc *desc, struct irq_chip *chip)
 {
-	if (!(desc->istate & IRQS_ONESHOT)) {
+	if (!(desc->istate & IRQS_ONESHOT))
+	{
 		chip->irq_eoi(&desc->irq_data);
 		return;
 	}
@@ -669,10 +748,13 @@ static void cond_unmask_eoi_irq(struct irq_desc *desc, struct irq_chip *chip)
 	 *   completely).
 	 */
 	if (!irqd_irq_disabled(&desc->irq_data) &&
-	    irqd_irq_masked(&desc->irq_data) && !desc->threads_oneshot) {
+		irqd_irq_masked(&desc->irq_data) && !desc->threads_oneshot)
+	{
 		chip->irq_eoi(&desc->irq_data);
 		unmask_irq(desc);
-	} else if (!(chip->flags & IRQCHIP_EOI_THREADED)) {
+	}
+	else if (!(chip->flags & IRQCHIP_EOI_THREADED))
+	{
 		chip->irq_eoi(&desc->irq_data);
 	}
 }
@@ -686,6 +768,16 @@ static void cond_unmask_eoi_irq(struct irq_desc *desc, struct irq_chip *chip)
  *	for modern forms of interrupt handlers, which handle the flow
  *	details in hardware, transparently.
  */
+/*
+	这种机制支持那些硬件中已经处理好中断流程细节的中断控制器，
+		也就是说，硬件会自动处理中断的确认（acknowledge）和屏蔽（masking）等操作，而不需要软件介入。
+
+	在传统的中断处理中，软件需要执行一系列操作来管理中断，例如确认中断、屏蔽中断和解除中断屏蔽。
+		但是，对于某些现代硬件，这些操作可以在硬件层面自动完成，软件只需要在最后通知硬件中断处理已经完成即可。
+
+	handle_fasteoi_irq函数提供了一种简化的中断处理流程，它允许中断控制器在硬件层面处理大部分流程，
+		而软件只需在处理完中断后发送一个EOI信号。这样做可以减少软件层面的中断处理开销，提高系统的效率。
+*/
 void handle_fasteoi_irq(struct irq_desc *desc)
 {
 	struct irq_chip *chip = desc->irq_data.chip;
@@ -701,7 +793,8 @@ void handle_fasteoi_irq(struct irq_desc *desc)
 	 * If its disabled or no action available
 	 * then mask it and get out of here:
 	 */
-	if (unlikely(!desc->action || irqd_irq_disabled(&desc->irq_data))) {
+	if (unlikely(!desc->action || irqd_irq_disabled(&desc->irq_data)))
+	{
 		desc->istate |= IRQS_PENDING;
 		mask_irq(desc);
 		goto out;
@@ -774,11 +867,30 @@ EXPORT_SYMBOL_GPL(handle_fasteoi_nmi);
  */
 void handle_edge_irq(struct irq_desc *desc)
 {
+	/*
+		当前CPU的中断处于关闭状态，不会产生本地CPU的并发，但是为了防止其他CPU并发访问，这里需要持有锁
+		这个锁在handle_irq_event中会先释放掉，specific handler处理完后，会重新加锁
+			irqreturn_t handle_irq_event(struct irq_desc *desc)
+			{
+				raw_spin_unlock(&desc->lock);
+				ret = handle_irq_event_percpu(desc);	// action list，耗时较长
+				raw_spin_lock(&desc->lock);
+			}
+	*/
 	raw_spin_lock(&desc->lock);
 
 	desc->istate &= ~(IRQS_REPLAY | IRQS_WAITING);
 
-	if (!irq_may_run(desc)) {
+	/*
+		该中断正在被其他CPU处理时，该CPU只负责ack该中断，具体处理还是交给原CPU来做，原CPU会检查pending状态，并进行处理
+			1.设置状态为pending
+			2.ack and mask
+
+		为什么要mask掉中断源？
+			因为在软件状态同时只能有一个正在处理(inprogress)和一个正在等待(pending)的中断，多余的没法处理
+	*/
+	if (!irq_may_run(desc))
+	{
 		desc->istate |= IRQS_PENDING;
 		mask_ack_irq(desc);
 		goto out_unlock;
@@ -788,7 +900,13 @@ void handle_edge_irq(struct irq_desc *desc)
 	 * If its disabled or no action available then mask it and get
 	 * out of here.
 	 */
-	if (irqd_irq_disabled(&desc->irq_data) || !desc->action) {
+	/*
+		该irq被diable掉了，或者不存在specific handler时，中断没法被处理
+			1.设置状态为pending
+			2.ack and mask
+	*/
+	if (irqd_irq_disabled(&desc->irq_data) || !desc->action)
+	{
 		desc->istate |= IRQS_PENDING;
 		mask_ack_irq(desc);
 		goto out_unlock;
@@ -799,8 +917,14 @@ void handle_edge_irq(struct irq_desc *desc)
 	/* Start handling the irq */
 	desc->irq_data.chip->irq_ack(&desc->irq_data);
 
-	do {
-		if (unlikely(!desc->action)) {
+	do
+	{
+		/*
+			处理上一个irq的handle_irq_event过程中释放过锁，其他CPU可能有注销specific handler的行为
+			所以在处理当前pending状态的irq时，需要检测specific handler是否存在
+		*/
+		if (unlikely(!desc->action))
+		{
 			mask_irq(desc);
 			goto out_unlock;
 		}
@@ -810,16 +934,23 @@ void handle_edge_irq(struct irq_desc *desc)
 		 * one, we could have masked the irq.
 		 * Reenable it, if it was not disabled in meantime.
 		 */
-		if (unlikely(desc->istate & IRQS_PENDING)) {
+		/*
+			当前中断即将变成inprogress状态，pending状态位置就空余出来了，
+				可以unmask该irq，让后续的中断的触发占据pending状态
+		*/
+		if (unlikely(desc->istate & IRQS_PENDING))
+		{
 			if (!irqd_irq_disabled(&desc->irq_data) &&
-			    irqd_irq_masked(&desc->irq_data))
+				irqd_irq_masked(&desc->irq_data))
 				unmask_irq(desc);
 		}
 
+		// 调用specific handler处理中断
 		handle_irq_event(desc);
 
+		// 处于pending状态且不处于disable，继续处理下一个pending中断
 	} while ((desc->istate & IRQS_PENDING) &&
-		 !irqd_irq_disabled(&desc->irq_data));
+			 !irqd_irq_disabled(&desc->irq_data));
 
 out_unlock:
 	raw_spin_unlock(&desc->lock);
@@ -842,7 +973,8 @@ void handle_edge_eoi_irq(struct irq_desc *desc)
 
 	desc->istate &= ~(IRQS_REPLAY | IRQS_WAITING);
 
-	if (!irq_may_run(desc)) {
+	if (!irq_may_run(desc))
+	{
 		desc->istate |= IRQS_PENDING;
 		goto out_eoi;
 	}
@@ -851,21 +983,23 @@ void handle_edge_eoi_irq(struct irq_desc *desc)
 	 * If its disabled or no action available then mask it and get
 	 * out of here.
 	 */
-	if (irqd_irq_disabled(&desc->irq_data) || !desc->action) {
+	if (irqd_irq_disabled(&desc->irq_data) || !desc->action)
+	{
 		desc->istate |= IRQS_PENDING;
 		goto out_eoi;
 	}
 
 	kstat_incr_irqs_this_cpu(desc);
 
-	do {
+	do
+	{
 		if (unlikely(!desc->action))
 			goto out_eoi;
 
 		handle_irq_event(desc);
 
 	} while ((desc->istate & IRQS_PENDING) &&
-		 !irqd_irq_disabled(&desc->irq_data));
+			 !irqd_irq_disabled(&desc->irq_data));
 
 out_eoi:
 	chip->irq_eoi(&desc->irq_data);
@@ -925,11 +1059,14 @@ void handle_percpu_devid_irq(struct irq_desc *desc)
 	if (chip->irq_ack)
 		chip->irq_ack(&desc->irq_data);
 
-	if (likely(action)) {
+	if (likely(action))
+	{
 		trace_irq_handler_entry(irq, action);
 		res = action->handler(irq, raw_cpu_ptr(action->percpu_dev_id));
 		trace_irq_handler_exit(irq, action, res);
-	} else {
+	}
+	else
+	{
 		unsigned int cpu = smp_processor_id();
 		bool enabled = cpumask_test_cpu(cpu, desc->percpu_enabled);
 
@@ -937,7 +1074,7 @@ void handle_percpu_devid_irq(struct irq_desc *desc)
 			irq_percpu_disable(desc, cpu);
 
 		pr_err_once("Spurious%s percpu IRQ%u on CPU%u\n",
-			    enabled ? " and unmasked" : "", irq, cpu);
+					enabled ? " and unmasked" : "", irq, cpu);
 	}
 
 	if (chip->irq_eoi)
@@ -971,11 +1108,14 @@ void handle_percpu_devid_fasteoi_nmi(struct irq_desc *desc)
 
 static void
 __irq_do_set_handler(struct irq_desc *desc, irq_flow_handler_t handle,
-		     int is_chained, const char *name)
+					 int is_chained, const char *name)
 {
-	if (!handle) {
+	if (!handle)
+	{
 		handle = handle_bad_irq;
-	} else {
+	}
+	else
+	{
 		struct irq_data *irq_data = &desc->irq_data;
 #ifdef CONFIG_IRQ_DOMAIN_HIERARCHY
 		/*
@@ -985,7 +1125,8 @@ __irq_do_set_handler(struct irq_desc *desc, irq_flow_handler_t handle,
 		 * bailing we install the handler, but obviously we
 		 * cannot enable/startup the interrupt at this point.
 		 */
-		while (irq_data) {
+		while (irq_data)
+		{
 			if (irq_data->chip != &no_irq_chip)
 				break;
 			/*
@@ -1004,11 +1145,13 @@ __irq_do_set_handler(struct irq_desc *desc, irq_flow_handler_t handle,
 	}
 
 	/* Uninstall? */
-	if (handle == handle_bad_irq) {
+	if (handle == handle_bad_irq)
+	{
 		if (desc->irq_data.chip != &no_irq_chip)
 			mask_ack_irq(desc);
 		irq_state_set_disabled(desc);
-		if (is_chained) {
+		if (is_chained)
+		{
 			desc->action = NULL;
 			WARN_ON(irq_chip_pm_put(irq_desc_get_irq_data(desc)));
 		}
@@ -1017,7 +1160,8 @@ __irq_do_set_handler(struct irq_desc *desc, irq_flow_handler_t handle,
 	desc->handle_irq = handle;
 	desc->name = name;
 
-	if (handle != handle_bad_irq && is_chained) {
+	if (handle != handle_bad_irq && is_chained)
+	{
 		unsigned int type = irqd_get_trigger_type(&desc->irq_data);
 
 		/*
@@ -1028,7 +1172,8 @@ __irq_do_set_handler(struct irq_desc *desc, irq_flow_handler_t handle,
 		 * chained interrupt. Reset it immediately because we
 		 * do know better.
 		 */
-		if (type != IRQ_TYPE_NONE) {
+		if (type != IRQ_TYPE_NONE)
+		{
 			__irq_set_trigger(desc, type);
 			desc->handle_irq = handle;
 		}
@@ -1042,9 +1187,13 @@ __irq_do_set_handler(struct irq_desc *desc, irq_flow_handler_t handle,
 	}
 }
 
-void
-__irq_set_handler(unsigned int irq, irq_flow_handler_t handle, int is_chained,
-		  const char *name)
+/*
+	核心函数
+	对外暴露的是irq_set_handler接口
+	用于设置highlevel handler
+*/
+void __irq_set_handler(unsigned int irq, irq_flow_handler_t handle, int is_chained,
+					   const char *name)
 {
 	unsigned long flags;
 	struct irq_desc *desc = irq_get_desc_buslock(irq, &flags, 0);
@@ -1057,9 +1206,11 @@ __irq_set_handler(unsigned int irq, irq_flow_handler_t handle, int is_chained,
 }
 EXPORT_SYMBOL_GPL(__irq_set_handler);
 
-void
-irq_set_chained_handler_and_data(unsigned int irq, irq_flow_handler_t handle,
-				 void *data)
+/*
+	多interrupt controller级联时，利用该函数设置级联的特殊的handler
+*/
+void irq_set_chained_handler_and_data(unsigned int irq, irq_flow_handler_t handle,
+									  void *data)
 {
 	unsigned long flags;
 	struct irq_desc *desc = irq_get_desc_buslock(irq, &flags, 0);
@@ -1067,6 +1218,10 @@ irq_set_chained_handler_and_data(unsigned int irq, irq_flow_handler_t handle,
 	if (!desc)
 		return;
 
+	/*
+		级联情况下，在handler_data中存放的是子GIC的gic_data，便于向下处理子GIC上的中断
+		is_chained参数设置为1
+	*/
 	desc->irq_common_data.handler_data = data;
 	__irq_do_set_handler(desc, handle, 1, NULL);
 
@@ -1074,9 +1229,8 @@ irq_set_chained_handler_and_data(unsigned int irq, irq_flow_handler_t handle,
 }
 EXPORT_SYMBOL_GPL(irq_set_chained_handler_and_data);
 
-void
-irq_set_chip_and_handler_name(unsigned int irq, const struct irq_chip *chip,
-			      irq_flow_handler_t handle, const char *name)
+void irq_set_chip_and_handler_name(unsigned int irq, const struct irq_chip *chip,
+								   irq_flow_handler_t handle, const char *name)
 {
 	irq_set_chip(irq, chip);
 	__irq_set_handler(irq, handle, 0, name);
@@ -1102,7 +1256,7 @@ void irq_modify_status(unsigned int irq, unsigned long clr, unsigned long set)
 	trigger = irqd_get_trigger_type(&desc->irq_data);
 
 	irqd_clear(&desc->irq_data, IRQD_NO_BALANCING | IRQD_PER_CPU |
-		   IRQD_TRIGGER_MASK | IRQD_LEVEL | IRQD_MOVE_PCNTXT);
+									IRQD_TRIGGER_MASK | IRQD_LEVEL | IRQD_MOVE_PCNTXT);
 	if (irq_settings_has_no_balance_set(desc))
 		irqd_set(&desc->irq_data, IRQD_NO_BALANCING);
 	if (irq_settings_is_per_cpu(desc))
@@ -1136,7 +1290,8 @@ void irq_cpu_online(void)
 	unsigned long flags;
 	unsigned int irq;
 
-	for_each_active_irq(irq) {
+	for_each_active_irq(irq)
+	{
 		desc = irq_to_desc(irq);
 		if (!desc)
 			continue;
@@ -1145,8 +1300,8 @@ void irq_cpu_online(void)
 
 		chip = irq_data_get_irq_chip(&desc->irq_data);
 		if (chip && chip->irq_cpu_online &&
-		    (!(chip->flags & IRQCHIP_ONOFFLINE_ENABLED) ||
-		     !irqd_irq_disabled(&desc->irq_data)))
+			(!(chip->flags & IRQCHIP_ONOFFLINE_ENABLED) ||
+			 !irqd_irq_disabled(&desc->irq_data)))
 			chip->irq_cpu_online(&desc->irq_data);
 
 		raw_spin_unlock_irqrestore(&desc->lock, flags);
@@ -1166,7 +1321,8 @@ void irq_cpu_offline(void)
 	unsigned long flags;
 	unsigned int irq;
 
-	for_each_active_irq(irq) {
+	for_each_active_irq(irq)
+	{
 		desc = irq_to_desc(irq);
 		if (!desc)
 			continue;
@@ -1175,8 +1331,8 @@ void irq_cpu_offline(void)
 
 		chip = irq_data_get_irq_chip(&desc->irq_data);
 		if (chip && chip->irq_cpu_offline &&
-		    (!(chip->flags & IRQCHIP_ONOFFLINE_ENABLED) ||
-		     !irqd_irq_disabled(&desc->irq_data)))
+			(!(chip->flags & IRQCHIP_ONOFFLINE_ENABLED) ||
+			 !irqd_irq_disabled(&desc->irq_data)))
 			chip->irq_cpu_offline(&desc->irq_data);
 
 		raw_spin_unlock_irqrestore(&desc->lock, flags);
@@ -1184,7 +1340,7 @@ void irq_cpu_offline(void)
 }
 #endif
 
-#ifdef	CONFIG_IRQ_DOMAIN_HIERARCHY
+#ifdef CONFIG_IRQ_DOMAIN_HIERARCHY
 
 #ifdef CONFIG_IRQ_FASTEOI_HIERARCHY_HANDLERS
 /**
@@ -1212,7 +1368,8 @@ void handle_fasteoi_ack_irq(struct irq_desc *desc)
 	 * If its disabled or no action available
 	 * then mask it and get out of here:
 	 */
-	if (unlikely(!desc->action || irqd_irq_disabled(&desc->irq_data))) {
+	if (unlikely(!desc->action || irqd_irq_disabled(&desc->irq_data)))
+	{
 		desc->istate |= IRQS_PENDING;
 		mask_irq(desc);
 		goto out;
@@ -1264,7 +1421,8 @@ void handle_fasteoi_mask_irq(struct irq_desc *desc)
 	 * If its disabled or no action available
 	 * then mask it and get out of here:
 	 */
-	if (unlikely(!desc->action || irqd_irq_disabled(&desc->irq_data))) {
+	if (unlikely(!desc->action || irqd_irq_disabled(&desc->irq_data)))
+	{
 		desc->istate |= IRQS_PENDING;
 		mask_irq(desc);
 		goto out;
@@ -1299,8 +1457,8 @@ EXPORT_SYMBOL_GPL(handle_fasteoi_mask_irq);
  * Conditional success, if the underlying irqchip does not implement it.
  */
 int irq_chip_set_parent_state(struct irq_data *data,
-			      enum irqchip_irq_state which,
-			      bool val)
+							  enum irqchip_irq_state which,
+							  bool val)
 {
 	data = data->parent_data;
 
@@ -1321,8 +1479,8 @@ EXPORT_SYMBOL_GPL(irq_chip_set_parent_state);
  * Conditional success, if the underlying irqchip does not implement it.
  */
 int irq_chip_get_parent_state(struct irq_data *data,
-			      enum irqchip_irq_state which,
-			      bool *state)
+							  enum irqchip_irq_state which,
+							  bool *state)
 {
 	data = data->parent_data;
 
@@ -1427,7 +1585,7 @@ EXPORT_SYMBOL_GPL(irq_chip_eoi_parent);
  * Conditional, as the underlying parent chip might not implement it.
  */
 int irq_chip_set_affinity_parent(struct irq_data *data,
-				 const struct cpumask *dest, bool force)
+								 const struct cpumask *dest, bool force)
 {
 	data = data->parent_data;
 	if (data->chip->irq_set_affinity)
@@ -1549,7 +1707,8 @@ int irq_chip_compose_msi_msg(struct irq_data *data, struct msi_msg *msg)
 {
 	struct irq_data *pos;
 
-	for (pos = NULL; !pos && data; data = irqd_get_parent_data(data)) {
+	for (pos = NULL; !pos && data; data = irqd_get_parent_data(data))
+	{
 		if (data->chip && data->chip->irq_compose_msi_msg)
 			pos = data;
 	}

@@ -58,7 +58,8 @@ struct irq_affinity_desc;
  * This structure, directly modeled after of_phandle_args, is used to
  * pass a device-specific description of an interrupt.
  */
-struct irq_fwspec {
+struct irq_fwspec
+{
 	struct fwnode_handle *fwnode;
 	int param_count;
 	u32 param[IRQ_DOMAIN_IRQ_SPEC_PARAMS];
@@ -66,7 +67,7 @@ struct irq_fwspec {
 
 /* Conversion function from of_phandle_args fields to fwspec  */
 void of_phandle_args_to_fwspec(struct device_node *np, const u32 *args,
-			       unsigned int count, struct irq_fwspec *fwspec);
+							   unsigned int count, struct irq_fwspec *fwspec);
 
 /*
  * Should several domains have the same device node, but serve
@@ -75,8 +76,9 @@ void of_phandle_args_to_fwspec(struct device_node *np, const u32 *args,
  * bus-specific token. Most domains are expected to only carry
  * DOMAIN_BUS_ANY.
  */
-enum irq_domain_bus_token {
-	DOMAIN_BUS_ANY		= 0,
+enum irq_domain_bus_token
+{
+	DOMAIN_BUS_ANY = 0,
 	DOMAIN_BUS_WIRED,
 	DOMAIN_BUS_GENERIC_MSI,
 	DOMAIN_BUS_PCI_MSI,
@@ -104,30 +106,61 @@ enum irq_domain_bus_token {
  * whatever internal data structures management is required. It also needs
  * to setup the irq_desc when returning from map().
  */
-struct irq_domain_ops {
+struct irq_domain_ops
+{
+	// match和select都用于判断当前的irq domain是否和设备树中提取的IC硬件信息相匹配
 	int (*match)(struct irq_domain *d, struct device_node *node,
-		     enum irq_domain_bus_token bus_token);
+				 enum irq_domain_bus_token bus_token);
 	int (*select)(struct irq_domain *d, struct irq_fwspec *fwspec,
-		      enum irq_domain_bus_token bus_token);
+				  enum irq_domain_bus_token bus_token);
+
+	/*
+		建立HW interrupt ID（hw参数）和IRQ number（virq参数）映射关系的时调用
+			例如：irq_create_mapping() -> irq_domain_associate() -> map() -> gic_irq_domain_map() -> irq_domain_set_info()
+				（1）设定该IRQ number对应的中断描述符（struct irq_desc）的irq chip
+				（2）设定该IRQ number对应的中断描述符的highlevel irq-events handler
+				（3）设定该IRQ number对应的中断描述符的 irq chip data
+	*/
 	int (*map)(struct irq_domain *d, unsigned int virq, irq_hw_number_t hw);
 	void (*unmap)(struct irq_domain *d, unsigned int virq);
+
+	/*
+		解析设备树中的interrupts属性（也叫interrupt specifier）上intsize个intspec（中断属性），
+			将其翻译成HW interrupt ID
+
+		调用实例如：irq_create_of_mapping -> irq_domain_translate -> xlate
+
+		..另，设备树中与中断相关的属性描述：
+			对要产生中断的外设：
+				（1）interrupt-parent。该外设interrupt request line物理连接到了哪一个中断控制器上
+				（2）interrupts。描述该外设产生的interrupt的细节信息（即interrupt specifier）
+					例如：HW interrupt ID（由该外设的device node中的interrupt-parent指向的interrupt controller解析）、interrupt触发类型等
+			对于Interrupt controller：
+				（1）interrupt-controller。表明该device node就是一个中断控制器
+				（2）#interrupt-cells。该中断控制器用多少个cell（一个cell就是一个32-bit的单元）描述一个外设的interrupt request line。
+					具体每个cell表示什么样的含义由interrupt controller自己定义
+				（3）interrupts和interrupt-parent。对于那些不是root的interrupt controller，
+					其本身也是作为一个产生中断的外设连接到其他的interrupt controller上，因此也需要定义interrupts和interrupt-parent的属性。
+
+			外设的interrupts属性要和#interrupt-cells格式相对应
+	*/
 	int (*xlate)(struct irq_domain *d, struct device_node *node,
-		     const u32 *intspec, unsigned int intsize,
-		     unsigned long *out_hwirq, unsigned int *out_type);
-#ifdef	CONFIG_IRQ_DOMAIN_HIERARCHY
+				 const u32 *intspec, unsigned int intsize,
+				 unsigned long *out_hwirq, unsigned int *out_type);
+#ifdef CONFIG_IRQ_DOMAIN_HIERARCHY
 	/* extended V2 interfaces to support hierarchy irq_domains */
 	int (*alloc)(struct irq_domain *d, unsigned int virq,
-		     unsigned int nr_irqs, void *arg);
+				 unsigned int nr_irqs, void *arg);
 	void (*free)(struct irq_domain *d, unsigned int virq,
-		     unsigned int nr_irqs);
+				 unsigned int nr_irqs);
 	int (*activate)(struct irq_domain *d, struct irq_data *irqd, bool reserve);
 	void (*deactivate)(struct irq_domain *d, struct irq_data *irq_data);
 	int (*translate)(struct irq_domain *d, struct irq_fwspec *fwspec,
-			 unsigned long *out_hwirq, unsigned int *out_type);
+					 unsigned long *out_hwirq, unsigned int *out_type);
 #endif
 #ifdef CONFIG_GENERIC_IRQ_DEBUGFS
 	void (*debug_show)(struct seq_file *m, struct irq_domain *d,
-			   struct irq_data *irqd, int ind);
+					   struct irq_data *irqd, int ind);
 #endif
 };
 
@@ -161,67 +194,69 @@ struct irq_domain_chip_generic;
  * @revmap_mutex: Lock for the revmap
  * @revmap: Linear table of irq_data pointers
  */
-struct irq_domain {
-	struct list_head link;
+struct irq_domain
+{
+	struct list_head link; // 被挂入irq_domain_list全局链表
 	const char *name;
-	const struct irq_domain_ops *ops;
-	void *host_data;
+	const struct irq_domain_ops *ops; // callback函数
+	void *host_data;				  // 归底层interrupt controller使用的私有数据
 	unsigned int flags;
 	unsigned int mapcount;
 
 	/* Optional data */
-	struct fwnode_handle *fwnode;
+	struct fwnode_handle *fwnode; // 与该irq_domin关联的device node(即interrupt controller)
 	enum irq_domain_bus_token bus_token;
 	struct irq_domain_chip_generic *gc;
 	struct device *dev;
-#ifdef	CONFIG_IRQ_DOMAIN_HIERARCHY
+#ifdef CONFIG_IRQ_DOMAIN_HIERARCHY
 	struct irq_domain *parent;
 #endif
 
 	/* reverse map data. The linear map gets appended to the irq_domain */
-	irq_hw_number_t hwirq_max;
-	unsigned int revmap_size;
-	struct radix_tree_root revmap_tree;
+	irq_hw_number_t hwirq_max;			// linear lookup table，HW interrupt ID最大值
+	unsigned int revmap_size;			// linear lookup table，size
+	struct radix_tree_root revmap_tree; // Radix Tree map，指向root node
 	struct mutex revmap_mutex;
-	struct irq_data __rcu *revmap[];
+	struct irq_data __rcu *revmap[]; // linear lookup table，index为HW interrupt ID，值为IRQ number值
 };
 
 /* Irq domain flags */
-enum {
+enum
+{
 	/* Irq domain is hierarchical */
-	IRQ_DOMAIN_FLAG_HIERARCHY	= (1 << 0),
+	IRQ_DOMAIN_FLAG_HIERARCHY = (1 << 0),
 
 	/* Irq domain name was allocated in __irq_domain_add() */
-	IRQ_DOMAIN_NAME_ALLOCATED	= (1 << 1),
+	IRQ_DOMAIN_NAME_ALLOCATED = (1 << 1),
 
 	/* Irq domain is an IPI domain with virq per cpu */
-	IRQ_DOMAIN_FLAG_IPI_PER_CPU	= (1 << 2),
+	IRQ_DOMAIN_FLAG_IPI_PER_CPU = (1 << 2),
 
 	/* Irq domain is an IPI domain with single virq */
-	IRQ_DOMAIN_FLAG_IPI_SINGLE	= (1 << 3),
+	IRQ_DOMAIN_FLAG_IPI_SINGLE = (1 << 3),
 
 	/* Irq domain implements MSIs */
-	IRQ_DOMAIN_FLAG_MSI		= (1 << 4),
+	IRQ_DOMAIN_FLAG_MSI = (1 << 4),
 
 	/* Irq domain implements MSI remapping */
-	IRQ_DOMAIN_FLAG_MSI_REMAP	= (1 << 5),
+	IRQ_DOMAIN_FLAG_MSI_REMAP = (1 << 5),
 
 	/*
 	 * Quirk to handle MSI implementations which do not provide
 	 * masking. Currently known to affect x86, but partially
 	 * handled in core code.
 	 */
-	IRQ_DOMAIN_MSI_NOMASK_QUIRK	= (1 << 6),
+	IRQ_DOMAIN_MSI_NOMASK_QUIRK = (1 << 6),
 
 	/* Irq domain doesn't translate anything */
-	IRQ_DOMAIN_FLAG_NO_MAP		= (1 << 7),
+	IRQ_DOMAIN_FLAG_NO_MAP = (1 << 7),
 
 	/*
 	 * Flags starting from IRQ_DOMAIN_FLAG_NONCORE are reserved
 	 * for implementation specific purposes and ignored by the
 	 * core code.
 	 */
-	IRQ_DOMAIN_FLAG_NONCORE		= (1 << 16),
+	IRQ_DOMAIN_FLAG_NONCORE = (1 << 16),
 };
 
 static inline struct device_node *irq_domain_get_of_node(struct irq_domain *d)
@@ -230,7 +265,7 @@ static inline struct device_node *irq_domain_get_of_node(struct irq_domain *d)
 }
 
 static inline void irq_domain_set_pm_device(struct irq_domain *d,
-					    struct device *dev)
+											struct device *dev)
 {
 	if (d)
 		d->dev = dev;
@@ -238,25 +273,24 @@ static inline void irq_domain_set_pm_device(struct irq_domain *d,
 
 #ifdef CONFIG_IRQ_DOMAIN
 struct fwnode_handle *__irq_domain_alloc_fwnode(unsigned int type, int id,
-						const char *name, phys_addr_t *pa);
+												const char *name, phys_addr_t *pa);
 
-enum {
+enum
+{
 	IRQCHIP_FWNODE_REAL,
 	IRQCHIP_FWNODE_NAMED,
 	IRQCHIP_FWNODE_NAMED_ID,
 };
 
-static inline
-struct fwnode_handle *irq_domain_alloc_named_fwnode(const char *name)
+static inline struct fwnode_handle *irq_domain_alloc_named_fwnode(const char *name)
 {
 	return __irq_domain_alloc_fwnode(IRQCHIP_FWNODE_NAMED, 0, name, NULL);
 }
 
-static inline
-struct fwnode_handle *irq_domain_alloc_named_id_fwnode(const char *name, int id)
+static inline struct fwnode_handle *irq_domain_alloc_named_id_fwnode(const char *name, int id)
 {
 	return __irq_domain_alloc_fwnode(IRQCHIP_FWNODE_NAMED_ID, id, name,
-					 NULL);
+									 NULL);
 }
 
 static inline struct fwnode_handle *irq_domain_alloc_fwnode(phys_addr_t *pa)
@@ -266,34 +300,34 @@ static inline struct fwnode_handle *irq_domain_alloc_fwnode(phys_addr_t *pa)
 
 void irq_domain_free_fwnode(struct fwnode_handle *fwnode);
 struct irq_domain *__irq_domain_add(struct fwnode_handle *fwnode, unsigned int size,
-				    irq_hw_number_t hwirq_max, int direct_max,
-				    const struct irq_domain_ops *ops,
-				    void *host_data);
+									irq_hw_number_t hwirq_max, int direct_max,
+									const struct irq_domain_ops *ops,
+									void *host_data);
 struct irq_domain *irq_domain_create_simple(struct fwnode_handle *fwnode,
-					    unsigned int size,
-					    unsigned int first_irq,
-					    const struct irq_domain_ops *ops,
-					    void *host_data);
+											unsigned int size,
+											unsigned int first_irq,
+											const struct irq_domain_ops *ops,
+											void *host_data);
 struct irq_domain *irq_domain_add_legacy(struct device_node *of_node,
-					 unsigned int size,
-					 unsigned int first_irq,
-					 irq_hw_number_t first_hwirq,
-					 const struct irq_domain_ops *ops,
-					 void *host_data);
+										 unsigned int size,
+										 unsigned int first_irq,
+										 irq_hw_number_t first_hwirq,
+										 const struct irq_domain_ops *ops,
+										 void *host_data);
 struct irq_domain *irq_domain_create_legacy(struct fwnode_handle *fwnode,
-					    unsigned int size,
-					    unsigned int first_irq,
-					    irq_hw_number_t first_hwirq,
-					    const struct irq_domain_ops *ops,
-					    void *host_data);
+											unsigned int size,
+											unsigned int first_irq,
+											irq_hw_number_t first_hwirq,
+											const struct irq_domain_ops *ops,
+											void *host_data);
 extern struct irq_domain *irq_find_matching_fwspec(struct irq_fwspec *fwspec,
-						   enum irq_domain_bus_token bus_token);
+												   enum irq_domain_bus_token bus_token);
 extern bool irq_domain_check_msi_remap(void);
 extern void irq_set_default_host(struct irq_domain *host);
 extern struct irq_domain *irq_get_default_host(void);
 extern int irq_domain_alloc_descs(int virq, unsigned int nr_irqs,
-				  irq_hw_number_t hwirq, int node,
-				  const struct irq_affinity_desc *affinity);
+								  irq_hw_number_t hwirq, int node,
+								  const struct irq_affinity_desc *affinity);
 
 static inline struct fwnode_handle *of_node_to_fwnode(struct device_node *node)
 {
@@ -308,11 +342,10 @@ static inline bool is_fwnode_irqchip(struct fwnode_handle *fwnode)
 }
 
 extern void irq_domain_update_bus_token(struct irq_domain *domain,
-					enum irq_domain_bus_token bus_token);
+										enum irq_domain_bus_token bus_token);
 
-static inline
-struct irq_domain *irq_find_matching_fwnode(struct fwnode_handle *fwnode,
-					    enum irq_domain_bus_token bus_token)
+static inline struct irq_domain *irq_find_matching_fwnode(struct fwnode_handle *fwnode,
+														  enum irq_domain_bus_token bus_token)
 {
 	struct irq_fwspec fwspec = {
 		.fwnode = fwnode,
@@ -322,7 +355,7 @@ struct irq_domain *irq_find_matching_fwnode(struct fwnode_handle *fwnode,
 }
 
 static inline struct irq_domain *irq_find_matching_host(struct device_node *node,
-							enum irq_domain_bus_token bus_token)
+														enum irq_domain_bus_token bus_token)
 {
 	return irq_find_matching_fwnode(of_node_to_fwnode(node), bus_token);
 }
@@ -338,11 +371,18 @@ static inline struct irq_domain *irq_find_host(struct device_node *node)
 	return d;
 }
 
+/*
+	兼容的旧接口
+	irq_domain_add_simple()
+	irq_domain_add_legacy()
+	irq_domain_create_simple()
+	irq_domain_create_legacy()
+*/
 static inline struct irq_domain *irq_domain_add_simple(struct device_node *of_node,
-						       unsigned int size,
-						       unsigned int first_irq,
-						       const struct irq_domain_ops *ops,
-						       void *host_data)
+													   unsigned int size,
+													   unsigned int first_irq,
+													   const struct irq_domain_ops *ops,
+													   void *host_data)
 {
 	return irq_domain_create_simple(of_node_to_fwnode(of_node), size, first_irq, ops, host_data);
 }
@@ -354,19 +394,29 @@ static inline struct irq_domain *irq_domain_add_simple(struct device_node *of_no
  * @ops: map/unmap domain callbacks
  * @host_data: Controller private data pointer
  */
+/*
+	HW interrupt ID -> IRQ number
+	线性映射，HW ID不能过大，且HW ID排列最好紧密
+	最终将该irq domain挂入irq_domain_list的全局列表
+*/
 static inline struct irq_domain *irq_domain_add_linear(struct device_node *of_node,
-					 unsigned int size,
-					 const struct irq_domain_ops *ops,
-					 void *host_data)
+													   unsigned int size,
+													   const struct irq_domain_ops *ops,
+													   void *host_data)
 {
 	return __irq_domain_add(of_node_to_fwnode(of_node), size, size, 0, ops, host_data);
 }
 
+/*
+	HW interrupt ID -> IRQ number
+	no map，两者相等，直接将IRQ number写入Interrupt Controller的配置寄存器作为HW ID
+	最终将该irq domain挂入irq_domain_list的全局列表
+*/
 #ifdef CONFIG_IRQ_DOMAIN_NOMAP
 static inline struct irq_domain *irq_domain_add_nomap(struct device_node *of_node,
-					 unsigned int max_irq,
-					 const struct irq_domain_ops *ops,
-					 void *host_data)
+													  unsigned int max_irq,
+													  const struct irq_domain_ops *ops,
+													  void *host_data)
 {
 	return __irq_domain_add(of_node_to_fwnode(of_node), 0, max_irq, max_irq, ops, host_data);
 }
@@ -374,24 +424,34 @@ static inline struct irq_domain *irq_domain_add_nomap(struct device_node *of_nod
 extern unsigned int irq_create_direct_mapping(struct irq_domain *host);
 #endif
 
+/*
+	HW interrupt ID -> IRQ number
+	Radix Tree，HW ID作为lookup key
+	基数树是一种前缀树，节点可包含多位信息，降低树层数
+	实际上只有powerPC和MIPS的硬件平台在使用
+	最终将该irq domain挂入irq_domain_list的全局列表
+*/
 static inline struct irq_domain *irq_domain_add_tree(struct device_node *of_node,
-					 const struct irq_domain_ops *ops,
-					 void *host_data)
+													 const struct irq_domain_ops *ops,
+													 void *host_data)
 {
 	return __irq_domain_add(of_node_to_fwnode(of_node), 0, ~0, 0, ops, host_data);
 }
 
+/*
+	和上面的irq_domain_add_linear功能等价
+*/
 static inline struct irq_domain *irq_domain_create_linear(struct fwnode_handle *fwnode,
-					 unsigned int size,
-					 const struct irq_domain_ops *ops,
-					 void *host_data)
+														  unsigned int size,
+														  const struct irq_domain_ops *ops,
+														  void *host_data)
 {
 	return __irq_domain_add(fwnode, size, size, 0, ops, host_data);
 }
 
 static inline struct irq_domain *irq_domain_create_tree(struct fwnode_handle *fwnode,
-					 const struct irq_domain_ops *ops,
-					 void *host_data)
+														const struct irq_domain_ops *ops,
+														void *host_data)
 {
 	return __irq_domain_add(fwnode, 0, ~0, 0, ops, host_data);
 }
@@ -399,29 +459,35 @@ static inline struct irq_domain *irq_domain_create_tree(struct fwnode_handle *fw
 extern void irq_domain_remove(struct irq_domain *host);
 
 extern int irq_domain_associate(struct irq_domain *domain, unsigned int irq,
-					irq_hw_number_t hwirq);
+								irq_hw_number_t hwirq);
 extern void irq_domain_associate_many(struct irq_domain *domain,
-				      unsigned int irq_base,
-				      irq_hw_number_t hwirq_base, int count);
+									  unsigned int irq_base,
+									  irq_hw_number_t hwirq_base, int count);
 
 extern unsigned int irq_create_mapping_affinity(struct irq_domain *host,
-				      irq_hw_number_t hwirq,
-				      const struct irq_affinity_desc *affinity);
+												irq_hw_number_t hwirq,
+												const struct irq_affinity_desc *affinity);
 extern unsigned int irq_create_fwspec_mapping(struct irq_fwspec *fwspec);
 extern void irq_dispose_mapping(unsigned int virq);
 
+/*
+	建立映射关系，输入irq_domain实例和HW interrupt ID，返回动态分配的IRQ number
+	驱动调用时需要清楚所使用的HW interrupt ID，一般来说HW interrupt ID对驱动不可见，
+		但GPIO类型的中断，它的HW interrupt ID和GPIO有特定关系，driver知道自己使用那个GPIO
+
+*/
 static inline unsigned int irq_create_mapping(struct irq_domain *host,
-					      irq_hw_number_t hwirq)
+											  irq_hw_number_t hwirq)
 {
 	return irq_create_mapping_affinity(host, hwirq, NULL);
 }
 
 extern struct irq_desc *__irq_resolve_mapping(struct irq_domain *domain,
-					      irq_hw_number_t hwirq,
-					      unsigned int *irq);
+											  irq_hw_number_t hwirq,
+											  unsigned int *irq);
 
 static inline struct irq_desc *irq_resolve_mapping(struct irq_domain *domain,
-						   irq_hw_number_t hwirq)
+												   irq_hw_number_t hwirq)
 {
 	return __irq_resolve_mapping(domain, hwirq, NULL);
 }
@@ -432,7 +498,7 @@ static inline struct irq_desc *irq_resolve_mapping(struct irq_domain *domain,
  * @hwirq: hardware irq number in that domain space
  */
 static inline unsigned int irq_find_mapping(struct irq_domain *domain,
-					    irq_hw_number_t hwirq)
+											irq_hw_number_t hwirq)
 {
 	unsigned int irq;
 
@@ -443,7 +509,7 @@ static inline unsigned int irq_find_mapping(struct irq_domain *domain,
 }
 
 static inline unsigned int irq_linear_revmap(struct irq_domain *domain,
-					     irq_hw_number_t hwirq)
+											 irq_hw_number_t hwirq)
 {
 	return irq_find_mapping(domain, hwirq);
 }
@@ -452,24 +518,24 @@ extern const struct irq_domain_ops irq_domain_simple_ops;
 
 /* stock xlate functions */
 int irq_domain_xlate_onecell(struct irq_domain *d, struct device_node *ctrlr,
-			const u32 *intspec, unsigned int intsize,
-			irq_hw_number_t *out_hwirq, unsigned int *out_type);
+							 const u32 *intspec, unsigned int intsize,
+							 irq_hw_number_t *out_hwirq, unsigned int *out_type);
 int irq_domain_xlate_twocell(struct irq_domain *d, struct device_node *ctrlr,
-			const u32 *intspec, unsigned int intsize,
-			irq_hw_number_t *out_hwirq, unsigned int *out_type);
+							 const u32 *intspec, unsigned int intsize,
+							 irq_hw_number_t *out_hwirq, unsigned int *out_type);
 int irq_domain_xlate_onetwocell(struct irq_domain *d, struct device_node *ctrlr,
-			const u32 *intspec, unsigned int intsize,
-			irq_hw_number_t *out_hwirq, unsigned int *out_type);
+								const u32 *intspec, unsigned int intsize,
+								irq_hw_number_t *out_hwirq, unsigned int *out_type);
 
 int irq_domain_translate_twocell(struct irq_domain *d,
-				 struct irq_fwspec *fwspec,
-				 unsigned long *out_hwirq,
-				 unsigned int *out_type);
+								 struct irq_fwspec *fwspec,
+								 unsigned long *out_hwirq,
+								 unsigned int *out_type);
 
 int irq_domain_translate_onecell(struct irq_domain *d,
-				 struct irq_fwspec *fwspec,
-				 unsigned long *out_hwirq,
-				 unsigned int *out_type);
+								 struct irq_fwspec *fwspec,
+								 unsigned long *out_hwirq,
+								 unsigned int *out_type);
 
 /* IPI functions */
 int irq_reserve_ipi(struct irq_domain *domain, const struct cpumask *dest);
@@ -477,73 +543,73 @@ int irq_destroy_ipi(unsigned int irq, const struct cpumask *dest);
 
 /* V2 interfaces to support hierarchy IRQ domains. */
 extern struct irq_data *irq_domain_get_irq_data(struct irq_domain *domain,
-						unsigned int virq);
+												unsigned int virq);
 extern void irq_domain_set_info(struct irq_domain *domain, unsigned int virq,
-				irq_hw_number_t hwirq,
-				const struct irq_chip *chip,
-				void *chip_data, irq_flow_handler_t handler,
-				void *handler_data, const char *handler_name);
+								irq_hw_number_t hwirq,
+								const struct irq_chip *chip,
+								void *chip_data, irq_flow_handler_t handler,
+								void *handler_data, const char *handler_name);
 extern void irq_domain_reset_irq_data(struct irq_data *irq_data);
-#ifdef	CONFIG_IRQ_DOMAIN_HIERARCHY
+#ifdef CONFIG_IRQ_DOMAIN_HIERARCHY
 extern struct irq_domain *irq_domain_create_hierarchy(struct irq_domain *parent,
-			unsigned int flags, unsigned int size,
-			struct fwnode_handle *fwnode,
-			const struct irq_domain_ops *ops, void *host_data);
+													  unsigned int flags, unsigned int size,
+													  struct fwnode_handle *fwnode,
+													  const struct irq_domain_ops *ops, void *host_data);
 
 static inline struct irq_domain *irq_domain_add_hierarchy(struct irq_domain *parent,
-					    unsigned int flags,
-					    unsigned int size,
-					    struct device_node *node,
-					    const struct irq_domain_ops *ops,
-					    void *host_data)
+														  unsigned int flags,
+														  unsigned int size,
+														  struct device_node *node,
+														  const struct irq_domain_ops *ops,
+														  void *host_data)
 {
 	return irq_domain_create_hierarchy(parent, flags, size,
-					   of_node_to_fwnode(node),
-					   ops, host_data);
+									   of_node_to_fwnode(node),
+									   ops, host_data);
 }
 
 extern int __irq_domain_alloc_irqs(struct irq_domain *domain, int irq_base,
-				   unsigned int nr_irqs, int node, void *arg,
-				   bool realloc,
-				   const struct irq_affinity_desc *affinity);
+								   unsigned int nr_irqs, int node, void *arg,
+								   bool realloc,
+								   const struct irq_affinity_desc *affinity);
 extern void irq_domain_free_irqs(unsigned int virq, unsigned int nr_irqs);
 extern int irq_domain_activate_irq(struct irq_data *irq_data, bool early);
 extern void irq_domain_deactivate_irq(struct irq_data *irq_data);
 
 static inline int irq_domain_alloc_irqs(struct irq_domain *domain,
-			unsigned int nr_irqs, int node, void *arg)
+										unsigned int nr_irqs, int node, void *arg)
 {
 	return __irq_domain_alloc_irqs(domain, -1, nr_irqs, node, arg, false,
-				       NULL);
+								   NULL);
 }
 
 extern int irq_domain_alloc_irqs_hierarchy(struct irq_domain *domain,
-					   unsigned int irq_base,
-					   unsigned int nr_irqs, void *arg);
+										   unsigned int irq_base,
+										   unsigned int nr_irqs, void *arg);
 extern int irq_domain_set_hwirq_and_chip(struct irq_domain *domain,
-					 unsigned int virq,
-					 irq_hw_number_t hwirq,
-					 const struct irq_chip *chip,
-					 void *chip_data);
+										 unsigned int virq,
+										 irq_hw_number_t hwirq,
+										 const struct irq_chip *chip,
+										 void *chip_data);
 extern void irq_domain_free_irqs_common(struct irq_domain *domain,
-					unsigned int virq,
-					unsigned int nr_irqs);
+										unsigned int virq,
+										unsigned int nr_irqs);
 extern void irq_domain_free_irqs_top(struct irq_domain *domain,
-				     unsigned int virq, unsigned int nr_irqs);
+									 unsigned int virq, unsigned int nr_irqs);
 
 extern int irq_domain_push_irq(struct irq_domain *domain, int virq, void *arg);
 extern int irq_domain_pop_irq(struct irq_domain *domain, int virq);
 
 extern int irq_domain_alloc_irqs_parent(struct irq_domain *domain,
-					unsigned int irq_base,
-					unsigned int nr_irqs, void *arg);
+										unsigned int irq_base,
+										unsigned int nr_irqs, void *arg);
 
 extern void irq_domain_free_irqs_parent(struct irq_domain *domain,
-					unsigned int irq_base,
-					unsigned int nr_irqs);
+										unsigned int irq_base,
+										unsigned int nr_irqs);
 
 extern int irq_domain_disconnect_hierarchy(struct irq_domain *domain,
-					   unsigned int virq);
+										   unsigned int virq);
 
 static inline bool irq_domain_is_hierarchy(struct irq_domain *domain)
 {
@@ -553,7 +619,7 @@ static inline bool irq_domain_is_hierarchy(struct irq_domain *domain)
 static inline bool irq_domain_is_ipi(struct irq_domain *domain)
 {
 	return domain->flags &
-		(IRQ_DOMAIN_FLAG_IPI_PER_CPU | IRQ_DOMAIN_FLAG_IPI_SINGLE);
+		   (IRQ_DOMAIN_FLAG_IPI_PER_CPU | IRQ_DOMAIN_FLAG_IPI_SINGLE);
 }
 
 static inline bool irq_domain_is_ipi_per_cpu(struct irq_domain *domain)
@@ -578,15 +644,15 @@ static inline bool irq_domain_is_msi_remap(struct irq_domain *domain)
 
 extern bool irq_domain_hierarchical_is_msi_remap(struct irq_domain *domain);
 
-#else	/* CONFIG_IRQ_DOMAIN_HIERARCHY */
+#else  /* CONFIG_IRQ_DOMAIN_HIERARCHY */
 static inline int irq_domain_alloc_irqs(struct irq_domain *domain,
-			unsigned int nr_irqs, int node, void *arg)
+										unsigned int nr_irqs, int node, void *arg)
 {
 	return -1;
 }
 
 static inline void irq_domain_free_irqs(unsigned int virq,
-					unsigned int nr_irqs) { }
+										unsigned int nr_irqs) {}
 
 static inline bool irq_domain_is_hierarchy(struct irq_domain *domain)
 {
@@ -623,10 +689,10 @@ irq_domain_hierarchical_is_msi_remap(struct irq_domain *domain)
 {
 	return false;
 }
-#endif	/* CONFIG_IRQ_DOMAIN_HIERARCHY */
+#endif /* CONFIG_IRQ_DOMAIN_HIERARCHY */
 
-#else /* CONFIG_IRQ_DOMAIN */
-static inline void irq_dispose_mapping(unsigned int virq) { }
+#else  /* CONFIG_IRQ_DOMAIN */
+static inline void irq_dispose_mapping(unsigned int virq) {}
 static inline struct irq_domain *irq_find_matching_fwnode(
 	struct fwnode_handle *fwnode, enum irq_domain_bus_token bus_token)
 {

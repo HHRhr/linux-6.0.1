@@ -124,8 +124,8 @@ ret_slow_syscall:
 	disable_irq_notrace			@ disable interrupts
 ENTRY(ret_to_user_from_irq)
 	ldr	r1, [tsk, #TI_FLAGS]
-	movs	r1, r1, lsl #16
-	bne	slow_work_pending
+	movs	r1, r1, lsl #16		@ 左移16位后放到r1中，也就是把高位抹去
+	bne	slow_work_pending		@ r1的低16位不为0，说明可能有TIF_SIGPENDING | TIF_NEED_RESCHED | TIF_NOTIFY_RESUMEb标志位，需要进行额外处理
 no_work_pending:
 	asm_trace_hardirqs_on save = 0
 
@@ -133,7 +133,7 @@ no_work_pending:
 	arch_ret_to_user r1
 	ct_user_enter save = 0
 
-	restore_user_regs fast = 0, offset = 0
+	restore_user_regs fast = 0, offset = 0		@ 完全复原中断发生前的现场
 ENDPROC(ret_to_user_from_irq)
 ENDPROC(ret_to_user)
 

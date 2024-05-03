@@ -27,14 +27,14 @@
  * setting should be assumed to be "as already configured", which
  * may be as per machine or firmware initialisation.
  */
-#define IRQF_TRIGGER_NONE	0x00000000
-#define IRQF_TRIGGER_RISING	0x00000001
-#define IRQF_TRIGGER_FALLING	0x00000002
-#define IRQF_TRIGGER_HIGH	0x00000004
-#define IRQF_TRIGGER_LOW	0x00000008
-#define IRQF_TRIGGER_MASK	(IRQF_TRIGGER_HIGH | IRQF_TRIGGER_LOW | \
-				 IRQF_TRIGGER_RISING | IRQF_TRIGGER_FALLING)
-#define IRQF_TRIGGER_PROBE	0x00000010
+#define IRQF_TRIGGER_NONE 0x00000000
+#define IRQF_TRIGGER_RISING 0x00000001
+#define IRQF_TRIGGER_FALLING 0x00000002
+#define IRQF_TRIGGER_HIGH 0x00000004
+#define IRQF_TRIGGER_LOW 0x00000008
+#define IRQF_TRIGGER_MASK (IRQF_TRIGGER_HIGH | IRQF_TRIGGER_LOW | \
+						   IRQF_TRIGGER_RISING | IRQF_TRIGGER_FALLING)
+#define IRQF_TRIGGER_PROBE 0x00000010
 
 /*
  * These flags used only by the kernel as part of the
@@ -68,22 +68,54 @@
  * IRQF_NO_DEBUG - Exclude from runnaway detection for IPI and similar handlers,
  *		   depends on IRQF_PERCPU.
  */
-#define IRQF_SHARED		0x00000080
-#define IRQF_PROBE_SHARED	0x00000100
-#define __IRQF_TIMER		0x00000200
-#define IRQF_PERCPU		0x00000400
-#define IRQF_NOBALANCING	0x00000800
-#define IRQF_IRQPOLL		0x00001000
-#define IRQF_ONESHOT		0x00002000
-#define IRQF_NO_SUSPEND		0x00004000
-#define IRQF_FORCE_RESUME	0x00008000
-#define IRQF_NO_THREAD		0x00010000
-#define IRQF_EARLY_RESUME	0x00020000
-#define IRQF_COND_SUSPEND	0x00040000
-#define IRQF_NO_AUTOEN		0x00080000
-#define IRQF_NO_DEBUG		0x00100000
+#define IRQF_SHARED 0x00000080 //	表示外设共享request line，现在interrupt controller接口很多，基本用不到
+#define IRQF_PROBE_SHARED 0x00000100
+#define __IRQF_TIMER 0x00000200
 
-#define IRQF_TIMER		(__IRQF_TIMER | IRQF_NO_SUSPEND | IRQF_NO_THREAD)
+/*
+	中断号虽然只有一个，但是，实际上控制该interrupt ID的寄存器有n组
+	因此，每个CPU都能收到中断，独立的处理中断
+	这些寄存器组有两种形态，
+		一种是banked，所有CPU操作同样的寄存器地址，硬件系统会根据访问的cpu定向到不同的寄存器，
+		另外一种是non banked，也就是说，对于该interrupt source，每个cpu都有自己独特的访问地址。
+*/
+#define IRQF_PERCPU 0x00000400
+
+/*
+	global类型中断(即SPI中断)会被负载均衡的送到合适的CPU，这个标志可以禁用balance
+*/
+#define IRQF_NOBALANCING 0x00000800
+
+#define IRQF_IRQPOLL 0x00001000
+
+/*
+	上半部handler（action list）不会有嵌套触发的问题
+	但是底半部handler，有时也需要禁止重复触发，所以需要ONESHOT标志
+*/
+#define IRQF_ONESHOT 0x00002000
+
+/*
+	表示在suspend时，不必disable该中断，可能系统会依靠该中断被唤醒(resume)
+*/
+#define IRQF_NO_SUSPEND 0x00004000
+
+/*
+	表示在resume时，必须要enable该中断
+*/
+#define IRQF_FORCE_RESUME 0x00008000
+
+/*
+	该中断禁止被线程化
+	这里指禁止线程化specific handler，而非禁止有底半部handler
+*/
+#define IRQF_NO_THREAD 0x00010000
+
+#define IRQF_EARLY_RESUME 0x00020000
+#define IRQF_COND_SUSPEND 0x00040000
+#define IRQF_NO_AUTOEN 0x00080000
+#define IRQF_NO_DEBUG 0x00100000
+
+#define IRQF_TIMER (__IRQF_TIMER | IRQF_NO_SUSPEND | IRQF_NO_THREAD)
 
 /*
  * These values can be returned by request_any_context_irq() and
@@ -92,8 +124,9 @@
  * IRQC_IS_HARDIRQ - interrupt runs in hardirq context
  * IRQC_IS_NESTED - interrupt runs in a nested threaded context
  */
-enum {
-	IRQC_IS_HARDIRQ	= 0,
+enum
+{
+	IRQC_IS_HARDIRQ = 0,
 	IRQC_IS_NESTED,
 };
 
@@ -115,20 +148,21 @@ typedef irqreturn_t (*irq_handler_t)(int, void *);
  * @thread_mask:	bitmask for keeping track of @thread activity
  * @dir:	pointer to the proc/irq/NN/name entry
  */
-struct irqaction {
-	irq_handler_t		handler;
-	void			*dev_id;
-	void __percpu		*percpu_dev_id;
-	struct irqaction	*next;
-	irq_handler_t		thread_fn;
-	struct task_struct	*thread;
-	struct irqaction	*secondary;
-	unsigned int		irq;
-	unsigned int		flags;
-	unsigned long		thread_flags;
-	unsigned long		thread_mask;
-	const char		*name;
-	struct proc_dir_entry	*dir;
+struct irqaction
+{
+	irq_handler_t handler;
+	void *dev_id;
+	void __percpu *percpu_dev_id;
+	struct irqaction *next;
+	irq_handler_t thread_fn;
+	struct task_struct *thread;
+	struct irqaction *secondary;
+	unsigned int irq;
+	unsigned int flags;
+	unsigned long thread_flags;
+	unsigned long thread_mask;
+	const char *name;
+	struct proc_dir_entry *dir;
 } ____cacheline_internodealigned_in_smp;
 
 extern irqreturn_t no_action(int cpl, void *dev_id);
@@ -141,12 +175,12 @@ extern irqreturn_t no_action(int cpl, void *dev_id);
  * 0x80000000 is guaranteed to be outside the available range of interrupts
  * and easy to distinguish from other possible incorrect values.
  */
-#define IRQ_NOTCONNECTED	(1U << 31)
+#define IRQ_NOTCONNECTED (1U << 31)
 
 extern int __must_check
 request_threaded_irq(unsigned int irq, irq_handler_t handler,
-		     irq_handler_t thread_fn,
-		     unsigned long flags, const char *name, void *dev);
+					 irq_handler_t thread_fn,
+					 unsigned long flags, const char *name, void *dev);
 
 /**
  * request_irq - Add a handler for an interrupt line
@@ -163,35 +197,35 @@ request_threaded_irq(unsigned int irq, irq_handler_t handler,
  */
 static inline int __must_check
 request_irq(unsigned int irq, irq_handler_t handler, unsigned long flags,
-	    const char *name, void *dev)
+			const char *name, void *dev)
 {
 	return request_threaded_irq(irq, handler, NULL, flags, name, dev);
 }
 
 extern int __must_check
 request_any_context_irq(unsigned int irq, irq_handler_t handler,
-			unsigned long flags, const char *name, void *dev_id);
+						unsigned long flags, const char *name, void *dev_id);
 
 extern int __must_check
 __request_percpu_irq(unsigned int irq, irq_handler_t handler,
-		     unsigned long flags, const char *devname,
-		     void __percpu *percpu_dev_id);
+					 unsigned long flags, const char *devname,
+					 void __percpu *percpu_dev_id);
 
 extern int __must_check
 request_nmi(unsigned int irq, irq_handler_t handler, unsigned long flags,
-	    const char *name, void *dev);
+			const char *name, void *dev);
 
 static inline int __must_check
 request_percpu_irq(unsigned int irq, irq_handler_t handler,
-		   const char *devname, void __percpu *percpu_dev_id)
+				   const char *devname, void __percpu *percpu_dev_id)
 {
 	return __request_percpu_irq(irq, handler, 0,
-				    devname, percpu_dev_id);
+								devname, percpu_dev_id);
 }
 
 extern int __must_check
 request_percpu_nmi(unsigned int irq, irq_handler_t handler,
-		   const char *devname, void __percpu *dev);
+				   const char *devname, void __percpu *dev);
 
 extern const void *free_irq(unsigned int, void *);
 extern void free_percpu_irq(unsigned int, void __percpu *);
@@ -203,22 +237,22 @@ struct device;
 
 extern int __must_check
 devm_request_threaded_irq(struct device *dev, unsigned int irq,
-			  irq_handler_t handler, irq_handler_t thread_fn,
-			  unsigned long irqflags, const char *devname,
-			  void *dev_id);
+						  irq_handler_t handler, irq_handler_t thread_fn,
+						  unsigned long irqflags, const char *devname,
+						  void *dev_id);
 
 static inline int __must_check
 devm_request_irq(struct device *dev, unsigned int irq, irq_handler_t handler,
-		 unsigned long irqflags, const char *devname, void *dev_id)
+				 unsigned long irqflags, const char *devname, void *dev_id)
 {
 	return devm_request_threaded_irq(dev, irq, handler, NULL, irqflags,
-					 devname, dev_id);
+									 devname, dev_id);
 }
 
 extern int __must_check
 devm_request_any_context_irq(struct device *dev, unsigned int irq,
-		 irq_handler_t handler, unsigned long irqflags,
-		 const char *devname, void *dev_id);
+							 irq_handler_t handler, unsigned long irqflags,
+							 const char *devname, void *dev_id);
 
 extern void devm_free_irq(struct device *dev, unsigned int irq, void *dev_id);
 
@@ -258,7 +292,8 @@ extern void rearm_wake_irq(unsigned int irq);
  *			structure must only be freed when this function is
  *			called or later.
  */
-struct irq_affinity_notify {
+struct irq_affinity_notify
+{
 	unsigned int irq;
 	struct kref kref;
 	struct work_struct work;
@@ -266,7 +301,7 @@ struct irq_affinity_notify {
 	void (*release)(struct kref *ref);
 };
 
-#define	IRQ_AFFINITY_MAX_SETS  4
+#define IRQ_AFFINITY_MAX_SETS 4
 
 /**
  * struct irq_affinity - Description for automatic irq affinity assignements
@@ -282,13 +317,14 @@ struct irq_affinity_notify {
  * @priv:		Private data for usage by @calc_sets, usually a
  *			pointer to driver/device specific data.
  */
-struct irq_affinity {
-	unsigned int	pre_vectors;
-	unsigned int	post_vectors;
-	unsigned int	nr_sets;
-	unsigned int	set_size[IRQ_AFFINITY_MAX_SETS];
-	void		(*calc_sets)(struct irq_affinity *, unsigned int nvecs);
-	void		*priv;
+struct irq_affinity
+{
+	unsigned int pre_vectors;
+	unsigned int post_vectors;
+	unsigned int nr_sets;
+	unsigned int set_size[IRQ_AFFINITY_MAX_SETS];
+	void (*calc_sets)(struct irq_affinity *, unsigned int nvecs);
+	void *priv;
 };
 
 /**
@@ -296,9 +332,10 @@ struct irq_affinity {
  * @mask:	cpumask to hold the affinity assignment
  * @is_managed: 1 if the interrupt is managed internally
  */
-struct irq_affinity_desc {
-	struct cpumask	mask;
-	unsigned int	is_managed : 1;
+struct irq_affinity_desc
+{
+	struct cpumask mask;
+	unsigned int is_managed : 1;
 };
 
 #if defined(CONFIG_SMP)
@@ -312,7 +349,7 @@ extern int irq_can_set_affinity(unsigned int irq);
 extern int irq_select_affinity(unsigned int irq);
 
 extern int __irq_apply_affinity_hint(unsigned int irq, const struct cpumask *m,
-				     bool setaffinity);
+									 bool setaffinity);
 
 /**
  * irq_update_affinity_hint - Update the affinity hint
@@ -352,7 +389,7 @@ static inline int irq_set_affinity_hint(unsigned int irq, const struct cpumask *
 }
 
 extern int irq_update_affinity_desc(unsigned int irq,
-				    struct irq_affinity_desc *affinity);
+									struct irq_affinity_desc *affinity);
 
 extern int
 irq_set_affinity_notifier(unsigned int irq, struct irq_affinity_notify *notify);
@@ -361,7 +398,7 @@ struct irq_affinity_desc *
 irq_create_affinity_masks(unsigned int nvec, struct irq_affinity *affd);
 
 unsigned int irq_calc_affinity_vectors(unsigned int minvec, unsigned int maxvec,
-				       const struct irq_affinity *affd);
+									   const struct irq_affinity *affd);
 
 #else /* CONFIG_SMP */
 
@@ -380,28 +417,28 @@ static inline int irq_can_set_affinity(unsigned int irq)
 	return 0;
 }
 
-static inline int irq_select_affinity(unsigned int irq)  { return 0; }
+static inline int irq_select_affinity(unsigned int irq) { return 0; }
 
 static inline int irq_update_affinity_hint(unsigned int irq,
-					   const struct cpumask *m)
+										   const struct cpumask *m)
 {
 	return -EINVAL;
 }
 
 static inline int irq_set_affinity_and_hint(unsigned int irq,
-					    const struct cpumask *m)
+											const struct cpumask *m)
 {
 	return -EINVAL;
 }
 
 static inline int irq_set_affinity_hint(unsigned int irq,
-					const struct cpumask *m)
+										const struct cpumask *m)
 {
 	return -EINVAL;
 }
 
 static inline int irq_update_affinity_desc(unsigned int irq,
-					   struct irq_affinity_desc *affinity)
+										   struct irq_affinity_desc *affinity)
 {
 	return -EINVAL;
 }
@@ -420,7 +457,7 @@ irq_create_affinity_masks(unsigned int nvec, struct irq_affinity *affd)
 
 static inline unsigned int
 irq_calc_affinity_vectors(unsigned int minvec, unsigned int maxvec,
-			  const struct irq_affinity *affd)
+						  const struct irq_affinity *affd)
 {
 	return maxvec;
 }
@@ -494,27 +531,28 @@ static inline int disable_irq_wake(unsigned int irq)
 /*
  * irq_get_irqchip_state/irq_set_irqchip_state specific flags
  */
-enum irqchip_irq_state {
-	IRQCHIP_STATE_PENDING,		/* Is interrupt pending? */
-	IRQCHIP_STATE_ACTIVE,		/* Is interrupt in progress? */
-	IRQCHIP_STATE_MASKED,		/* Is interrupt masked? */
-	IRQCHIP_STATE_LINE_LEVEL,	/* Is IRQ line high? */
+enum irqchip_irq_state
+{
+	IRQCHIP_STATE_PENDING,	  /* Is interrupt pending? */
+	IRQCHIP_STATE_ACTIVE,	  /* Is interrupt in progress? */
+	IRQCHIP_STATE_MASKED,	  /* Is interrupt masked? */
+	IRQCHIP_STATE_LINE_LEVEL, /* Is IRQ line high? */
 };
 
 extern int irq_get_irqchip_state(unsigned int irq, enum irqchip_irq_state which,
-				 bool *state);
+								 bool *state);
 extern int irq_set_irqchip_state(unsigned int irq, enum irqchip_irq_state which,
-				 bool state);
+								 bool state);
 
 #ifdef CONFIG_IRQ_FORCED_THREADING
-# ifdef CONFIG_PREEMPT_RT
-#  define force_irqthreads()	(true)
-# else
-DECLARE_STATIC_KEY_FALSE(force_irqthreads_key);
-#  define force_irqthreads()	(static_branch_unlikely(&force_irqthreads_key))
-# endif
+#ifdef CONFIG_PREEMPT_RT
+#define force_irqthreads() (true)
 #else
-#define force_irqthreads()	(false)
+DECLARE_STATIC_KEY_FALSE(force_irqthreads_key);
+#define force_irqthreads() (static_branch_unlikely(&force_irqthreads_key))
+#endif
+#else
+#define force_irqthreads() (false)
 #endif
 
 #ifndef local_softirq_pending
@@ -523,9 +561,9 @@ DECLARE_STATIC_KEY_FALSE(force_irqthreads_key);
 #define local_softirq_pending_ref irq_stat.__softirq_pending
 #endif
 
-#define local_softirq_pending()	(__this_cpu_read(local_softirq_pending_ref))
-#define set_softirq_pending(x)	(__this_cpu_write(local_softirq_pending_ref, (x)))
-#define or_softirq_pending(x)	(__this_cpu_or(local_softirq_pending_ref, (x)))
+#define local_softirq_pending() (__this_cpu_read(local_softirq_pending_ref))
+#define set_softirq_pending(x) (__this_cpu_write(local_softirq_pending_ref, (x)))
+#define or_softirq_pending(x) (__this_cpu_or(local_softirq_pending_ref, (x)))
 
 #endif /* local_softirq_pending */
 
@@ -536,7 +574,10 @@ DECLARE_STATIC_KEY_FALSE(force_irqthreads_key);
  * implement the following hook.
  */
 #ifndef hard_irq_disable
-#define hard_irq_disable()	do { } while(0)
+#define hard_irq_disable() \
+	do                     \
+	{                      \
+	} while (0)
 #endif
 
 /* PLEASE, avoid to allocate new softirqs, if you need not _really_ high
@@ -544,19 +585,21 @@ DECLARE_STATIC_KEY_FALSE(force_irqthreads_key);
    tasklets are more than enough. F.e. all serial device BHs et
    al. should be converted to tasklets, not to softirqs.
  */
-
+/*
+	soft irq number是静态定义的
+*/
 enum
 {
-	HI_SOFTIRQ=0,
-	TIMER_SOFTIRQ,
-	NET_TX_SOFTIRQ,
+	HI_SOFTIRQ = 0, // 用于高优先级的tasklet
+	TIMER_SOFTIRQ,	// 普通timer
+	NET_TX_SOFTIRQ, // 网卡收发
 	NET_RX_SOFTIRQ,
-	BLOCK_SOFTIRQ,
+	BLOCK_SOFTIRQ, // 块设备
 	IRQ_POLL_SOFTIRQ,
-	TASKLET_SOFTIRQ,
-	SCHED_SOFTIRQ,
-	HRTIMER_SOFTIRQ,
-	RCU_SOFTIRQ,    /* Preferable RCU should always be the last softirq */
+	TASKLET_SOFTIRQ, // 用于普通的tasklet
+	SCHED_SOFTIRQ,	 // 用于多CPU之间的负载均衡的
+	HRTIMER_SOFTIRQ, // 用于高精度timer的
+	RCU_SOFTIRQ,	 /* Preferable RCU should always be the last softirq */
 
 	NR_SOFTIRQS
 };
@@ -575,7 +618,7 @@ enum
 /* map softirq index to softirq name. update 'softirq_to_name' in
  * kernel/softirq.c when adding a new softirq.
  */
-extern const char * const softirq_to_name[NR_SOFTIRQS];
+extern const char *const softirq_to_name[NR_SOFTIRQS];
 
 /* softirq mask and active fields moved to irq_cpustat_t in
  * asm/hardirq.h to get better cache usage.  KAO
@@ -583,7 +626,7 @@ extern const char * const softirq_to_name[NR_SOFTIRQS];
 
 struct softirq_action
 {
-	void	(*action)(struct softirq_action *);
+	void (*action)(struct softirq_action *);
 };
 
 asmlinkage void do_softirq(void);
@@ -625,62 +668,75 @@ static inline struct task_struct *this_cpu_ksoftirqd(void)
 
    Properties:
    * If tasklet_schedule() is called, then tasklet is guaranteed
-     to be executed on some cpu at least once after this.
+	 to be executed on some cpu at least once after this.
    * If the tasklet is already scheduled, but its execution is still not
-     started, it will be executed only once.
+	 started, it will be executed only once.
    * If this tasklet is already running on another CPU (or schedule is called
-     from tasklet itself), it is rescheduled for later.
+	 from tasklet itself), it is rescheduled for later.
    * Tasklet is strictly serialized wrt itself, but not
-     wrt another tasklets. If client needs some intertask synchronization,
-     he makes it with spinlocks.
+	 wrt another tasklets. If client needs some intertask synchronization,
+	 he makes it with spinlocks.
  */
-
+/*
+	每个CPU都维护一个链表，维护归属该CPU的所有tasklet
+*/
 struct tasklet_struct
 {
-	struct tasklet_struct *next;
+	struct tasklet_struct *next; // 指向下一个tasklet
+	/*
+		TASKLET_STATE_SCHED，表示tasklet已经被安排好等待执行，其描述符已经被插入到tasklet_vec或tasklet_hi_vec数组的列表中
+		TASKLET_STATE_RUN，表示tasklet是在CPU上正在运行
+	*/
 	unsigned long state;
+	/*
+		>0 表示disable
+		=0 表示enable
+		local_bh_disable/enable会禁止所有softirq，包括tasklet
+		tasklet_disable/enable可以只禁止tasklet
+	*/
 	atomic_t count;
 	bool use_callback;
-	union {
+	union
+	{
 		void (*func)(unsigned long data);
 		void (*callback)(struct tasklet_struct *t);
 	};
 	unsigned long data;
 };
 
-#define DECLARE_TASKLET(name, _callback)		\
-struct tasklet_struct name = {				\
-	.count = ATOMIC_INIT(0),			\
-	.callback = _callback,				\
-	.use_callback = true,				\
-}
+#define DECLARE_TASKLET(name, _callback) \
+	struct tasklet_struct name = {       \
+		.count = ATOMIC_INIT(0),         \
+		.callback = _callback,           \
+		.use_callback = true,            \
+	}
 
-#define DECLARE_TASKLET_DISABLED(name, _callback)	\
-struct tasklet_struct name = {				\
-	.count = ATOMIC_INIT(1),			\
-	.callback = _callback,				\
-	.use_callback = true,				\
-}
+#define DECLARE_TASKLET_DISABLED(name, _callback) \
+	struct tasklet_struct name = {                \
+		.count = ATOMIC_INIT(1),                  \
+		.callback = _callback,                    \
+		.use_callback = true,                     \
+	}
 
-#define from_tasklet(var, callback_tasklet, tasklet_fieldname)	\
+#define from_tasklet(var, callback_tasklet, tasklet_fieldname) \
 	container_of(callback_tasklet, typeof(*var), tasklet_fieldname)
 
-#define DECLARE_TASKLET_OLD(name, _func)		\
-struct tasklet_struct name = {				\
-	.count = ATOMIC_INIT(0),			\
-	.func = _func,					\
-}
+#define DECLARE_TASKLET_OLD(name, _func) \
+	struct tasklet_struct name = {       \
+		.count = ATOMIC_INIT(0),         \
+		.func = _func,                   \
+	}
 
-#define DECLARE_TASKLET_DISABLED_OLD(name, _func)	\
-struct tasklet_struct name = {				\
-	.count = ATOMIC_INIT(1),			\
-	.func = _func,					\
-}
+#define DECLARE_TASKLET_DISABLED_OLD(name, _func) \
+	struct tasklet_struct name = {                \
+		.count = ATOMIC_INIT(1),                  \
+		.func = _func,                            \
+	}
 
 enum
 {
-	TASKLET_STATE_SCHED,	/* Tasklet is scheduled for execution */
-	TASKLET_STATE_RUN	/* Tasklet is running (SMP only) */
+	TASKLET_STATE_SCHED, /* Tasklet is scheduled for execution */
+	TASKLET_STATE_RUN	 /* Tasklet is running (SMP only) */
 };
 
 #if defined(CONFIG_SMP) || defined(CONFIG_PREEMPT_RT)
@@ -695,13 +751,21 @@ void tasklet_unlock_spin_wait(struct tasklet_struct *t);
 
 #else
 static inline int tasklet_trylock(struct tasklet_struct *t) { return 1; }
-static inline void tasklet_unlock(struct tasklet_struct *t) { }
-static inline void tasklet_unlock_wait(struct tasklet_struct *t) { }
-static inline void tasklet_unlock_spin_wait(struct tasklet_struct *t) { }
+static inline void tasklet_unlock(struct tasklet_struct *t) {}
+static inline void tasklet_unlock_wait(struct tasklet_struct *t) {}
+static inline void tasklet_unlock_spin_wait(struct tasklet_struct *t) {}
 #endif
 
 extern void __tasklet_schedule(struct tasklet_struct *t);
 
+/*
+	驱动中可以使用DECLARE_TASKLET定义tasklet，然后通过tasklet_schedule让tasklet去排队执行
+
+	这里设置TASKLET_STATE_SCHED标志位，
+		如果已处于TASKLET_STATE_SCHED状态，则什么都不做，也说明了同一个tasklet在开始处理前不能被触发多次
+
+	另..test_and_set_bit(int nr, long* addr)，将addr的第nr位置为1，然后返回旧值
+*/
 static inline void tasklet_schedule(struct tasklet_struct *t)
 {
 	if (!test_and_set_bit(TASKLET_STATE_SCHED, &t->state))
@@ -748,9 +812,9 @@ static inline void tasklet_enable(struct tasklet_struct *t)
 
 extern void tasklet_kill(struct tasklet_struct *t);
 extern void tasklet_init(struct tasklet_struct *t,
-			 void (*func)(unsigned long), unsigned long data);
+						 void (*func)(unsigned long), unsigned long data);
 extern void tasklet_setup(struct tasklet_struct *t,
-			  void (*callback)(struct tasklet_struct *));
+						  void (*callback)(struct tasklet_struct *));
 
 /*
  * Autoprobing for irqs:
@@ -780,7 +844,7 @@ extern void tasklet_setup(struct tasklet_struct *t,
  * if more than one irq occurred.
  */
 
-#if !defined(CONFIG_GENERIC_IRQ_PROBE) 
+#if !defined(CONFIG_GENERIC_IRQ_PROBE)
 static inline unsigned long probe_irq_on(void)
 {
 	return 0;
@@ -794,9 +858,9 @@ static inline unsigned int probe_irq_mask(unsigned long val)
 	return 0;
 }
 #else
-extern unsigned long probe_irq_on(void);	/* returns 0 on failure */
-extern int probe_irq_off(unsigned long);	/* returns 0 or negative on failure */
-extern unsigned int probe_irq_mask(unsigned long);	/* returns mask of ISA interrupts */
+extern unsigned long probe_irq_on(void);		   /* returns 0 on failure */
+extern int probe_irq_off(unsigned long);		   /* returns 0 or negative on failure */
+extern unsigned int probe_irq_mask(unsigned long); /* returns mask of ISA interrupts */
 #endif
 
 #ifdef CONFIG_PROC_FS
@@ -826,9 +890,9 @@ extern int arch_early_irq_init(void);
  * We want to know which function is an entrypoint of a hardirq or a softirq.
  */
 #ifndef __irq_entry
-# define __irq_entry	 __section(".irqentry.text")
+#define __irq_entry __section(".irqentry.text")
 #endif
 
-#define __softirq_entry  __section(".softirqentry.text")
+#define __softirq_entry __section(".softirqentry.text")
 
 #endif

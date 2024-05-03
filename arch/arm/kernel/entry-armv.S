@@ -33,8 +33,11 @@
  * Interrupt handling.
  */
 	.macro	irq_handler, from_user:req
-	mov	r1, sp
-	ldr_this_cpu r2, irq_stack_ptr, r2, r3
+	mov	r1, sp									@ r1指向内核栈
+	ldr_this_cpu r2, irq_stack_ptr, r2, r3		@ r2指向中断栈
+
+
+	@ 内核空间被中断TODO，这段代码不理解，大概是如果以及处于中断栈，则继续用，如果没有，就切换到中断栈
 	.if	\from_user == 0
 	@
 	@ If we took the interrupt while running in the kernel, we may already
@@ -53,8 +56,13 @@
 0:
 	.endif
 
-	mov_l	r0, generic_handle_arch_irq
-	bl	call_with_stack
+	@ 用户空间被中断
+	@ 切换到中断栈，调用generic_handle_arch_irq
+	mov_l	r0, generic_handle_arch_irq		@ r0指向中断处理函数
+											@ mov_l会分解为movw和movt，分别用于加载目标寄存器的低16位和高16位
+											@ 是因为ARM的立即数加载只能加载16位，所以当需要加载32位地址时，就需要使用mov_l这样的伪指令
+
+	bl	call_with_stack						@ bl是分支并链接指令，这里会跳转到call_with_stack，然后将下一条指令（1:）的地址存入lr寄存器作为返回地址
 1:
 	.endm
 
@@ -217,16 +225,20 @@ ENDPROC(__dabt_svc)
 
 	.align	5
 __irq_svc:
-	svc_entry
+	svc_entry 						@ 保存现场，和用户态处理方式一样，把发生中断前的所有寄存器压入svc_sp的栈中
 	irq_handler from_user=0
 
+	@ 走到这里，其实中断已经处理完了，接下来就是查看是否需要进行调度，分两种情况：
+	@ 1.preempt count不等于0时，说明发生中断前的代码里可能显式调用了preempt_disable，或处于软中断上下文，这时候不能进行调度
+	@ 	此时teq不等于0，会将flag强制设为0，导致tst指令返回0，因此不会执行svc_preempt，直接退出
+	@ 2.当preempt count等于0时，teq等于0，如果存在_TIF_NEED_RESCHED标志，则tst不等于0，会执行svc_preempt，进行调度
 #ifdef CONFIG_PREEMPTION
 	ldr	r8, [tsk, #TI_PREEMPT]		@ get preempt count
 	ldr	r0, [tsk, #TI_FLAGS]		@ get flags
-	teq	r8, #0				@ if preempt count != 0
+	teq	r8, #0				@ if preempt count != 0		@ teq是异或操作
 	movne	r0, #0				@ force flags to 0
-	tst	r0, #_TIF_NEED_RESCHED
-	blne	svc_preempt
+	tst	r0, #_TIF_NEED_RESCHED		@ tst是按位与操作
+	blne	svc_preempt				@ blne表示如果上条指令结果不为0，则跳转执行任务切换
 #endif
 
 	svc_exit r5, irq = 1			@ return from exception
@@ -353,18 +365,28 @@ ENDPROC(__fiq_abt)
 	.macro	usr_entry, trace=1, uaccess=1
  UNWIND(.fnstart	)
  UNWIND(.cantunwind	)	@ don't unwind the user space
-	sub	sp, sp, #PT_REGS_SIZE
- ARM(	stmib	sp, {r1 - r12}	)
+		@ 1.存储r0-r12到svc mode栈中
+
+									@ 现在处于svc mode，所以sp实际上是sp_svc
+	sub	sp, sp, #PT_REGS_SIZE		@ 在内核栈中预留sizeof(struct pt_regs)大小的位置（18个寄存器），内核栈也是自高向低的，所以这里使用sub
+ ARM(	stmib	sp, {r1 - r12}	)	@ stmib表示在sp + 4的地址开始存储，这里是预留了r0的位置，然后把用户空间用的r1到r12存入内核栈中
+ 									@ 这里有个知识点，sp后面有!时，最后的存储地址会写入sp，没有!时，sp的值是保持原来的值不变的
  THUMB(	stmia	sp, {r0 - r12}	)
 
  ATRAP(	mrc	p15, 0, r7, c1, c0, 0)
  ATRAP(	ldr_va	r8, cr_alignment)
 
-	ldmia	r0, {r3 - r5}
-	add	r0, sp, #S_PC		@ here for interlock avoidance
+	@ 2.从irq mode栈中取出用户空间的r0、pc、cpsr
+	
+	ldmia	r0, {r3 - r5}			@ r0保存了irq mode的栈，这里把栈里的内容取出，放到r3-r5中
+									@ 至此，r3->用户空间r0值，r4->用户空间pc值，r5->用户空间cpsr值
+
+	add	r0, sp, #S_PC		@ here for interlock avoidance		@ 现在r0指向栈中pc的位置
 	mov	r6, #-1			@  ""  ""     ""        ""
 
-	str	r3, [sp]		@ save the "real" r0 copied
+	@ 3.存储r0到svc mode栈中
+
+	str	r3, [sp]		@ save the "real" r0 copied    	@ 从r3寄存器里取出r0放在栈顶，sp自始至终一直没变过，一直指向栈顶r0的位置
 					@ from the exception stack
 
 	@
@@ -376,8 +398,17 @@ ENDPROC(__fiq_abt)
 	@
 	@ Also, separately save sp_usr and lr_usr
 	@
-	stmia	r0, {r4 - r6}
- ARM(	stmdb	r0, {sp, lr}^			)
+
+	@ 4.存储pc、cpsr到svc mode栈中
+
+	stmia	r0, {r4 - r6}			@ 从r4取出pc值，放入栈中pc位置，从r5取出cpsr放入栈中cpsr位置，从r6中取出-1，放入栈中orig_r0位置
+									@ 至此，r0，pc、cpsr都已存储栈中，只剩sp和lr，这两个寄存器是banked寄存器，属于用户独有，
+									@ 所以自中断发生以来，始终未污染到sp和lr，但是在恢复环境时要给所有寄存器直接赋值，所以也需要将它们存入栈中
+ 
+ 	@ 5.存储用户空间sp、lr到svc mode栈中
+
+ ARM(	stmdb	r0, {sp, lr}^			)		@ 这里使用的是db，表示先减再存储，而^表示user mode的寄存器
+ 												@ 至此，用户态所有的寄存器都已存储至svc mode的栈空间中
  THUMB(	store_user_sp_lr r0, r1, S_SP - S_PC	)
 
 	.if \uaccess
@@ -431,13 +462,13 @@ ENDPROC(__dabt_usr)
 
 	.align	5
 __irq_usr:
-	usr_entry
-	kuser_cmpxchg_check
-	irq_handler from_user=1
-	get_thread_info tsk
-	mov	why, #0
-	b	ret_to_user_from_irq
- UNWIND(.fnend		)
+	usr_entry						@ 保存用户现场
+	kuser_cmpxchg_check	
+	irq_handler from_user=1			@ 核心处理，指定来源为用户态
+	get_thread_info tsk				@ tsk是r9寄存器，用来指向当前的thread info数据结构
+	mov	why, #0						@ why是r8寄存器，与系统调用相关，在中断处理环境下设定为0
+	b	ret_to_user_from_irq		@ 中断返回
+ UNWIND(.fnend		)	
 ENDPROC(__irq_usr)
 
 	.ltorg
@@ -1086,34 +1117,51 @@ vector_bhb_bpiall_\name:
 #endif
 
 vector_\name:
+	@ 1.修正中断前保存的pc值
 	.if \correction
-	sub	lr, lr, #\correction
+	sub	lr, lr, #\correction	@ 软件修正返回地址偏移量，irq下是-4
 	.endif
 
+
+	@ 2.保存中断前的环境到irq mode栈中
 	@ Save r0, lr_<exception> (parent PC)
-	stmia	sp, {r0, lr}		@ save r0, lr
+	stmia	sp, {r0, lr}		@ save r0, lr  stmia表示存储后递增，这里将r0和lr存入sp指向的位置，并增加sp的值
 
 	@ Save spsr_<exception> (parent CPSR)
 .Lvec_\name:
-	mrs	lr, spsr
-	str	lr, [sp, #8]		@ save spsr
+	mrs	lr, spsr			@ mrs表示将状态寄存器的值移入通用寄存器
+	str	lr, [sp, #8]		@ save spsr   str表示存储，这里将lr的值存入sp+8的位置
+	
+	@ 至此，irq mode的栈中依次保存了：
+	@	r0：被中断环境的返回值
+	@	irq_lr，中断前的pc值-8：代表被中断环境的下一指令地址，也可以说是返回地址
+	@	irq_spsr，中断前的cpsr，代表被中断环境的cpsr
+	@ 也就是irq mode的sp中保存了所有被中断前的内容
 
+
+	@ 3.修改irq_spsr，准备切换到svc mode
 	@
 	@ Prepare for SVC32 mode.  IRQs remain disabled.
 	@
-	mrs	r0, cpsr
-	eor	r0, r0, #(\mode ^ SVC_MODE | PSR_ISETSTATE)
-	msr	spsr_cxsf, r0
+	mrs	r0, cpsr										@ cpsr存入r0，待下一步运算
+	eor	r0, r0, #(\mode ^ SVC_MODE | PSR_ISETSTATE)		@ eor表示异或，这里将模式标志（\mode）置为SVC32模式，保持其他标志不变，结果存入r0
+	msr	spsr_cxsf, r0									@ r0更新到irq_spsr，这里是做好了切换到SVC的准备，cxsf指定了msr指令要更新寄存器的哪些字段
 
+
+	@ 4.在lr中计算跳转地址，然后给pc和cpsr赋值，跳转至svc mode
 	@
 	@ the branch table must immediately follow this code
 	@
-	and	lr, lr, #0x0f
+	and	lr, lr, #0x0f						@ lr中当前存储的是中断前的cpsr值，0x0f二进制为01111，这里获取M[3:0]的值，也就是中断前所处的CPU模式
+											@ lr=0表示中断发生在用户空间，lr=3表示中断发生在内核空间
  THUMB(	adr	r0, 1f			)
  THUMB(	ldr	lr, [r0, lr, lsl #2]	)
-	mov	r0, sp
- ARM(	ldr	lr, [pc, lr, lsl #2]	)
-	movs	pc, lr			@ branch to handler in SVC mode
+	mov	r0, sp								@ 将irq mode的栈地址保存在r0中，传递给svc mode，猜测后续应该是由svc mode负责恢复被中断的环境
+ ARM(	ldr	lr, [pc, lr, lsl #2]	)		@ lsl表示逻辑左移（Logical Shift Left），这里 lr = pc + lr << 2
+											@ lr = 0，地址偏移0字节，lr = 3，地址偏移12字节
+											@ 一个.long代表4字节，所以lr = 0指向__irq_usr，而lr = 3指向__irq_svc
+
+	movs	pc, lr			@ branch to handler in SVC mode		注意这里是movs，表示将lr的值赋值给pc，将spsr的值赋值给cpsr，切换到svc mode
 ENDPROC(vector_\name)
 
 #ifdef CONFIG_HARDEN_BRANCH_HISTORY
@@ -1167,12 +1215,14 @@ vector_rst:
 /*
  * Interrupt dispatcher
  */
-	vector_stub	irq, IRQ_MODE, 4
+	vector_stub	irq, IRQ_MODE, 4	
+	@ 中断现场处理的lookup table，只有2项有效，说明只能在usr mode和svc mode发生中断，
+	@ 其他无效项可以保证在其他模式下发生了中断时，让系统捕获到错误，为debug提供有用的信息。
 
 	.long	__irq_usr			@  0  (USR_26 / USR_32)
 	.long	__irq_invalid			@  1  (FIQ_26 / FIQ_32)
 	.long	__irq_invalid			@  2  (IRQ_26 / IRQ_32)
-	.long	__irq_svc			@  3  (SVC_26 / SVC_32)
+	.long	__irq_svc			@  3  (SVC_26 / SVC_32)		@ .long __irq_svc 指令会在内存中分配4个字节，并把 __irq_svc 标签的地址存储在这4个字节中
 	.long	__irq_invalid			@  4
 	.long	__irq_invalid			@  5
 	.long	__irq_invalid			@  6

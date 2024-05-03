@@ -52,69 +52,105 @@ struct pt_regs;
  * @debugfs_file:	dentry for the debugfs file
  * @name:		flow handler name for /proc/interrupts output
  */
-struct irq_desc {
-	struct irq_common_data	irq_common_data;
-	struct irq_data		irq_data;
-	unsigned int __percpu	*kstat_irqs;
-	irq_flow_handler_t	handle_irq;
-	struct irqaction	*action;	/* IRQ action list */
-	unsigned int		status_use_accessors;
-	unsigned int		core_internal_state__do_not_mess_with_it;
-	unsigned int		depth;		/* nested irq disables */
-	unsigned int		wake_depth;	/* nested wake enables */
-	unsigned int		tot_count;
-	unsigned int		irq_count;	/* For detecting broken IRQs */
-	unsigned long		last_unhandled;	/* Aging timer for unhandled count */
-	unsigned int		irqs_unhandled;
-	atomic_t		threads_handled;
-	int			threads_handled_last;
-	raw_spinlock_t		lock;
-	struct cpumask		*percpu_enabled;
-	const struct cpumask	*percpu_affinity;
+struct irq_desc
+{
+	struct irq_common_data irq_common_data;
+	struct irq_data irq_data;		   // 可以说是数据中心，包含了chip、domain、irq number、hwirq等
+	unsigned int __percpu *kstat_irqs; // 存储每个CPU上自系统启动以来的中断计数
+
+	/*
+		1.highlevel irq-events handler
+
+		在Linux内核中，高级别的IRQ事件处理器（highlevel irq-events handler）是中断处理机制的一部分，它主要负责以下两个操作：
+			（1）中断流控制（Interrupt Flow Control）：
+				高级别处理器会调用中断描述符（irq_desc）的底层IRQ芯片驱动（irq_chip driver）来执行mask、ack等回调函数。
+					这些操作是为了控制中断流程，例如，mask操作会阻止中断信号到达处理器，而ack操作则是确认中断信号已被接收。
+					这些回调函数的目的是管理中断信号的处理状态，确保中断被正确地识别和响应。
+			（2）特定处理器的调用（Specific Handler Invocation）：
+				中断描述符上维护着一个动作列表（action list），高级别处理器会根据需要调用这个列表中的特定处理器（specific handler）。
+				这些特定处理器是为了处理具体的中断信号而设计的函数。
+				是否调用特定处理器取决于中断描述符的当前状态。例如，如果中断已经被处理，或者处于被屏蔽状态，则可能不会调用特定处理器。
+
+		中断流控制是一个由软件和硬件共同完成的过程。
+			软件部分涉及设置标志位，以便根据这些标志位来决定如何处理中断。
+			硬件部分则涉及到实际的中断控制器操作，如屏蔽（mask）或解除屏蔽（unmask）中断。
+	*/
+	irq_flow_handler_t handle_irq;
+	/*
+		2.specific handler
+
+		处理具体的事务
+	*/
+	struct irqaction *action; /* IRQ action list */
+
+	unsigned int status_use_accessors;
+	unsigned int core_internal_state__do_not_mess_with_it;
+	/*
+		depth用于追踪嵌套的irq_disable()调用
+		每次调用irq_disable()时，@depth会增加，而每次调用irq_enable()时，@depth会减少
+
+		可能在下面场景需要调用irq_disable()：
+			中断和进程上下文之间的同步：当中断处理程序和进程上下文需要访问同一个资源时，为了防止数据不一致，可能需要禁用中断。
+			设备驱动程序中的并发操作：设备驱动程序可能会在处理中断时访问硬件资源，而这些资源也可能被其他上下文（如进程上下文或其他中断上下文）访问。
+	*/
+	unsigned int depth;								   /* nested irq disables */
+	unsigned int wake_depth; /* nested wake enables */ // 电源管理中的wake up source相关
+	unsigned int tot_count;
+	unsigned int irq_count;		  /* For detecting broken IRQs */
+	unsigned long last_unhandled; /* Aging timer for unhandled count */
+	unsigned int irqs_unhandled;
+	atomic_t threads_handled;
+	int threads_handled_last;
+	raw_spinlock_t lock;
+	struct cpumask *percpu_enabled;
+	const struct cpumask *percpu_affinity;
 #ifdef CONFIG_SMP
-	const struct cpumask	*affinity_hint;
+	const struct cpumask *affinity_hint;
 	struct irq_affinity_notify *affinity_notify;
 #ifdef CONFIG_GENERIC_PENDING_IRQ
-	cpumask_var_t		pending_mask;
+	cpumask_var_t pending_mask;
 #endif
 #endif
-	unsigned long		threads_oneshot;
-	atomic_t		threads_active;
-	wait_queue_head_t       wait_for_threads;
+	/*
+		IRQ thread相关
+	*/
+	unsigned long threads_oneshot;
+	atomic_t threads_active;
+	wait_queue_head_t wait_for_threads;
 #ifdef CONFIG_PM_SLEEP
-	unsigned int		nr_actions;
-	unsigned int		no_suspend_depth;
-	unsigned int		cond_suspend_depth;
-	unsigned int		force_resume_depth;
+	unsigned int nr_actions;
+	unsigned int no_suspend_depth;
+	unsigned int cond_suspend_depth;
+	unsigned int force_resume_depth;
 #endif
 #ifdef CONFIG_PROC_FS
-	struct proc_dir_entry	*dir;
+	struct proc_dir_entry *dir;
 #endif
 #ifdef CONFIG_GENERIC_IRQ_DEBUGFS
-	struct dentry		*debugfs_file;
-	const char		*dev_name;
+	struct dentry *debugfs_file;
+	const char *dev_name;
 #endif
 #ifdef CONFIG_SPARSE_IRQ
-	struct rcu_head		rcu;
-	struct kobject		kobj;
+	struct rcu_head rcu;
+	struct kobject kobj;
 #endif
-	struct mutex		request_mutex;
-	int			parent_irq;
-	struct module		*owner;
-	const char		*name;
+	struct mutex request_mutex;
+	int parent_irq;
+	struct module *owner;
+	const char *name;
 } ____cacheline_internodealigned_in_smp;
 
 #ifdef CONFIG_SPARSE_IRQ
 extern void irq_lock_sparse(void);
 extern void irq_unlock_sparse(void);
 #else
-static inline void irq_lock_sparse(void) { }
-static inline void irq_unlock_sparse(void) { }
+static inline void irq_lock_sparse(void) {}
+static inline void irq_unlock_sparse(void) {}
 extern struct irq_desc irq_desc[NR_IRQS];
 #endif
 
 static inline unsigned int irq_desc_kstat_cpu(struct irq_desc *desc,
-					      unsigned int cpu)
+											  unsigned int cpu)
 {
 	return desc->kstat_irqs ? *per_cpu_ptr(desc->kstat_irqs, cpu) : 0;
 }
@@ -189,7 +225,7 @@ static inline int irq_desc_has_action(struct irq_desc *desc)
  * call site is the irq_set_type() callback.
  */
 static inline void irq_set_handler_locked(struct irq_data *data,
-					  irq_flow_handler_t handler)
+										  irq_flow_handler_t handler)
 {
 	struct irq_desc *desc = irq_data_to_desc(data);
 
@@ -210,8 +246,8 @@ static inline void irq_set_handler_locked(struct irq_data *data,
  */
 static inline void
 irq_set_chip_handler_name_locked(struct irq_data *data,
-				 const struct irq_chip *chip,
-				 irq_flow_handler_t handler, const char *name)
+								 const struct irq_chip *chip,
+								 irq_flow_handler_t handler, const char *name)
 {
 	struct irq_desc *desc = irq_data_to_desc(data);
 
@@ -238,10 +274,10 @@ static inline bool irq_is_percpu_devid(unsigned int irq)
 }
 
 void __irq_set_lockdep_class(unsigned int irq, struct lock_class_key *lock_class,
-			     struct lock_class_key *request_class);
+							 struct lock_class_key *request_class);
 static inline void
 irq_set_lockdep_class(unsigned int irq, struct lock_class_key *lock_class,
-		      struct lock_class_key *request_class)
+					  struct lock_class_key *request_class)
 {
 	if (IS_ENABLED(CONFIG_LOCKDEP))
 		__irq_set_lockdep_class(irq, lock_class, request_class);

@@ -33,11 +33,11 @@ UNWIND( .save	{fpreg, lr}	)
 UNWIND( .setfp	fpreg, sp	)
 	mov	fpreg, sp
 #endif
-	mov	sp, r2
-	mov	r2, r0
-	mov	r0, r1
+	mov	sp, r2		@ 切换到中断栈
+	mov	r2, r0		@ r2存放处理函数地址
+	mov	r0, r1		@ 拿内核栈作为generic_handle_arch_irq的参数，即struct pt_regs *regs
 
-	bl_r	r2
+	bl_r	r2		@ 调用r2寄存器中generic_handle_arch_irq
 
 #if defined(CONFIG_UNWINDER_FRAME_POINTER) && defined(CONFIG_CC_IS_GCC)
 	ldmdb	fp, {fp, sp, pc}

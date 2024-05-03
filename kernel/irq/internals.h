@@ -12,9 +12,12 @@
 #include <linux/sched/clock.h>
 
 #ifdef CONFIG_SPARSE_IRQ
-# define IRQ_BITMAP_BITS	(NR_IRQS + 8196)
+/*
+	对于Radix tree，除了预分配的，还可以动态分配8196个中断描述符
+*/
+#define IRQ_BITMAP_BITS (NR_IRQS + 8196)
 #else
-# define IRQ_BITMAP_BITS	NR_IRQS
+#define IRQ_BITMAP_BITS NR_IRQS
 #endif
 
 #define istate core_internal_state__do_not_mess_with_it
@@ -31,7 +34,8 @@ extern struct irqaction chained_action;
  * IRQTF_FORCED_THREAD  - irq action is force threaded
  * IRQTF_READY     - signals that irq thread is ready
  */
-enum {
+enum
+{
 	IRQTF_RUNTHREAD,
 	IRQTF_WARNED,
 	IRQTF_AFFINITY,
@@ -53,17 +57,18 @@ enum {
  * IRQS_SUSPENDED		- irq is suspended
  * IRQS_NMI			- irq line is used to deliver NMIs
  */
-enum {
-	IRQS_AUTODETECT		= 0x00000001,
-	IRQS_SPURIOUS_DISABLED	= 0x00000002,
-	IRQS_POLL_INPROGRESS	= 0x00000008,
-	IRQS_ONESHOT		= 0x00000020,
-	IRQS_REPLAY		= 0x00000040,
-	IRQS_WAITING		= 0x00000080,
-	IRQS_PENDING		= 0x00000200,
-	IRQS_SUSPENDED		= 0x00000800,
-	IRQS_TIMINGS		= 0x00001000,
-	IRQS_NMI		= 0x00002000,
+enum
+{
+	IRQS_AUTODETECT = 0x00000001,
+	IRQS_SPURIOUS_DISABLED = 0x00000002,
+	IRQS_POLL_INPROGRESS = 0x00000008,
+	IRQS_ONESHOT = 0x00000020,
+	IRQS_REPLAY = 0x00000040,
+	IRQS_WAITING = 0x00000080,
+	IRQS_PENDING = 0x00000200,
+	IRQS_SUSPENDED = 0x00000800,
+	IRQS_TIMINGS = 0x00001000,
+	IRQS_NMI = 0x00002000,
 };
 
 #include "debug.h"
@@ -73,11 +78,11 @@ extern int __irq_set_trigger(struct irq_desc *desc, unsigned long flags);
 extern void __disable_irq(struct irq_desc *desc);
 extern void __enable_irq(struct irq_desc *desc);
 
-#define IRQ_RESEND	true
-#define IRQ_NORESEND	false
+#define IRQ_RESEND true
+#define IRQ_NORESEND false
 
-#define IRQ_START_FORCE	true
-#define IRQ_START_COND	false
+#define IRQ_START_FORCE true
+#define IRQ_START_COND false
 
 extern int irq_activate(struct irq_desc *desc);
 extern int irq_activate_and_startup(struct irq_desc *desc, bool resend);
@@ -94,14 +99,14 @@ extern void unmask_irq(struct irq_desc *desc);
 extern void unmask_threaded_irq(struct irq_desc *desc);
 
 #ifdef CONFIG_SPARSE_IRQ
-static inline void irq_mark_irq(unsigned int irq) { }
+static inline void irq_mark_irq(unsigned int irq) {}
 #else
 extern void irq_mark_irq(unsigned int irq);
 #endif
 
 extern int __irq_get_irqchip_state(struct irq_data *data,
-				   enum irqchip_irq_state which,
-				   bool *state);
+								   enum irqchip_irq_state which,
+								   bool *state);
 
 extern void init_kstat_irqs(struct irq_desc *desc, int node, int nr);
 
@@ -120,12 +125,12 @@ extern void unregister_irq_proc(unsigned int irq, struct irq_desc *desc);
 extern void register_handler_proc(unsigned int irq, struct irqaction *action);
 extern void unregister_handler_proc(unsigned int irq, struct irqaction *action);
 #else
-static inline void register_irq_proc(unsigned int irq, struct irq_desc *desc) { }
-static inline void unregister_irq_proc(unsigned int irq, struct irq_desc *desc) { }
+static inline void register_irq_proc(unsigned int irq, struct irq_desc *desc) {}
+static inline void unregister_irq_proc(unsigned int irq, struct irq_desc *desc) {}
 static inline void register_handler_proc(unsigned int irq,
-					 struct irqaction *action) { }
+										 struct irqaction *action) {}
 static inline void unregister_handler_proc(unsigned int irq,
-					   struct irqaction *action) { }
+										   struct irqaction *action) {}
 #endif
 
 extern bool irq_can_set_affinity_usr(unsigned int irq);
@@ -133,7 +138,7 @@ extern bool irq_can_set_affinity_usr(unsigned int irq);
 extern void irq_set_thread_affinity(struct irq_desc *desc);
 
 extern int irq_do_set_affinity(struct irq_data *data,
-			       const struct cpumask *dest, bool force);
+							   const struct cpumask *dest, bool force);
 
 #ifdef CONFIG_SMP
 extern int irq_setup_affinity(struct irq_desc *desc);
@@ -154,18 +159,18 @@ static inline void chip_bus_sync_unlock(struct irq_desc *desc)
 		desc->irq_data.chip->irq_bus_sync_unlock(&desc->irq_data);
 }
 
-#define _IRQ_DESC_CHECK		(1 << 0)
-#define _IRQ_DESC_PERCPU	(1 << 1)
+#define _IRQ_DESC_CHECK (1 << 0)
+#define _IRQ_DESC_PERCPU (1 << 1)
 
-#define IRQ_GET_DESC_CHECK_GLOBAL	(_IRQ_DESC_CHECK)
-#define IRQ_GET_DESC_CHECK_PERCPU	(_IRQ_DESC_CHECK | _IRQ_DESC_PERCPU)
+#define IRQ_GET_DESC_CHECK_GLOBAL (_IRQ_DESC_CHECK)
+#define IRQ_GET_DESC_CHECK_PERCPU (_IRQ_DESC_CHECK | _IRQ_DESC_PERCPU)
 
-#define for_each_action_of_desc(desc, act)			\
+#define for_each_action_of_desc(desc, act) \
 	for (act = desc->action; act; act = act->next)
 
 struct irq_desc *
 __irq_get_desc_lock(unsigned int irq, unsigned long *flags, bool bus,
-		    unsigned int check);
+					unsigned int check);
 void __irq_put_desc_unlock(struct irq_desc *desc, unsigned long flags, bool bus);
 
 static inline struct irq_desc *
@@ -278,25 +283,26 @@ void irq_pm_remove_action(struct irq_desc *desc, struct irqaction *action);
 #else
 static inline bool irq_pm_check_wakeup(struct irq_desc *desc) { return false; }
 static inline void
-irq_pm_install_action(struct irq_desc *desc, struct irqaction *action) { }
+irq_pm_install_action(struct irq_desc *desc, struct irqaction *action) {}
 static inline void
-irq_pm_remove_action(struct irq_desc *desc, struct irqaction *action) { }
+irq_pm_remove_action(struct irq_desc *desc, struct irqaction *action) {}
 #endif
 
 #ifdef CONFIG_IRQ_TIMINGS
 
-#define IRQ_TIMINGS_SHIFT	5
-#define IRQ_TIMINGS_SIZE	(1 << IRQ_TIMINGS_SHIFT)
-#define IRQ_TIMINGS_MASK	(IRQ_TIMINGS_SIZE - 1)
+#define IRQ_TIMINGS_SHIFT 5
+#define IRQ_TIMINGS_SIZE (1 << IRQ_TIMINGS_SHIFT)
+#define IRQ_TIMINGS_MASK (IRQ_TIMINGS_SIZE - 1)
 
 /**
  * struct irq_timings - irq timings storing structure
  * @values: a circular buffer of u64 encoded <timestamp,irq> values
  * @count: the number of elements in the array
  */
-struct irq_timings {
-	u64	values[IRQ_TIMINGS_SIZE];
-	int	count;
+struct irq_timings
+{
+	u64 values[IRQ_TIMINGS_SIZE];
+	int count;
 };
 
 DECLARE_PER_CPU(struct irq_timings, irq_timings);
@@ -328,9 +334,10 @@ static inline void irq_setup_timings(struct irq_desc *desc, struct irqaction *ac
 	 * not fail, so letting the system boot anyway.
 	 */
 	ret = irq_timings_alloc(irq);
-	if (ret) {
+	if (ret)
+	{
 		pr_warn("Failed to allocate irq timing stats for irq%d (%d)",
-			irq, ret);
+				irq, ret);
 		return;
 	}
 
@@ -388,20 +395,19 @@ static __always_inline void record_irq_time(struct irq_desc *desc)
 #else
 static inline void irq_remove_timings(struct irq_desc *desc) {}
 static inline void irq_setup_timings(struct irq_desc *desc,
-				     struct irqaction *act) {};
+									 struct irqaction *act){};
 static inline void record_irq_time(struct irq_desc *desc) {}
 #endif /* CONFIG_IRQ_TIMINGS */
 
-
 #ifdef CONFIG_GENERIC_IRQ_CHIP
 void irq_init_generic_chip(struct irq_chip_generic *gc, const char *name,
-			   int num_ct, unsigned int irq_base,
-			   void __iomem *reg_base, irq_flow_handler_t handler);
+						   int num_ct, unsigned int irq_base,
+						   void __iomem *reg_base, irq_flow_handler_t handler);
 #else
 static inline void
 irq_init_generic_chip(struct irq_chip_generic *gc, const char *name,
-		      int num_ct, unsigned int irq_base,
-		      void __iomem *reg_base, irq_flow_handler_t handler) { }
+					  int num_ct, unsigned int irq_base,
+					  void __iomem *reg_base, irq_flow_handler_t handler) {}
 #endif /* CONFIG_GENERIC_IRQ_CHIP */
 
 #ifdef CONFIG_GENERIC_PENDING_IRQ
@@ -432,7 +438,7 @@ static inline bool handle_enforce_irqctx(struct irq_data *data)
 	return irqd_is_handle_enforce_irqctx(data);
 }
 bool irq_fixup_move_pending(struct irq_desc *desc, bool force_clear);
-#else /* CONFIG_GENERIC_PENDING_IRQ */
+#else  /* CONFIG_GENERIC_PENDING_IRQ */
 static inline bool irq_can_move_pcntxt(struct irq_data *data)
 {
 	return true;
@@ -494,14 +500,14 @@ static inline void irq_remove_debugfs_entry(struct irq_desc *desc)
 	kfree(desc->dev_name);
 }
 void irq_debugfs_copy_devname(int irq, struct device *dev);
-# ifdef CONFIG_IRQ_DOMAIN
+#ifdef CONFIG_IRQ_DOMAIN
 void irq_domain_debugfs_init(struct dentry *root);
-# else
+#else
 static inline void irq_domain_debugfs_init(struct dentry *root)
 {
 }
-# endif
-#else /* CONFIG_GENERIC_IRQ_DEBUGFS */
+#endif
+#else  /* CONFIG_GENERIC_IRQ_DEBUGFS */
 static inline void irq_add_debugfs_entry(unsigned int irq, struct irq_desc *d)
 {
 }

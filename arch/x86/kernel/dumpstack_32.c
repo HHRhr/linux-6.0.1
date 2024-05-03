@@ -37,8 +37,8 @@ const char *stack_type_name(enum stack_type type)
 
 static bool in_hardirq_stack(unsigned long *stack, struct stack_info *info)
 {
-	unsigned long *begin = (unsigned long *)this_cpu_read(hardirq_stack_ptr);
-	unsigned long *end   = begin + (THREAD_SIZE / sizeof(long));
+	unsigned long *begin = (unsigned long *)this_cpu_read(hard);
+	unsigned long *end = begin + (THREAD_SIZE / sizeof(long));
 
 	/*
 	 * This is a software stack, so 'end' can be a valid stack pointer.
@@ -47,23 +47,23 @@ static bool in_hardirq_stack(unsigned long *stack, struct stack_info *info)
 	if (stack < begin || stack > end)
 		return false;
 
-	info->type	= STACK_TYPE_IRQ;
-	info->begin	= begin;
-	info->end	= end;
+	info->type = STACK_TYPE_IRQ;
+	info->begin = begin;
+	info->end = end;
 
 	/*
 	 * See irq_32.c -- the next stack pointer is stored at the beginning of
 	 * the stack.
 	 */
-	info->next_sp	= (unsigned long *)*begin;
+	info->next_sp = (unsigned long *)*begin;
 
 	return true;
 }
 
 static bool in_softirq_stack(unsigned long *stack, struct stack_info *info)
 {
-	unsigned long *begin = (unsigned long *)this_cpu_read(softirq_stack_ptr);
-	unsigned long *end   = begin + (THREAD_SIZE / sizeof(long));
+	unsigned long *begin = (unsigned long *)this_cpu_read(soft);
+	unsigned long *end = begin + (THREAD_SIZE / sizeof(long));
 
 	/*
 	 * This is a software stack, so 'end' can be a valid stack pointer.
@@ -72,15 +72,15 @@ static bool in_softirq_stack(unsigned long *stack, struct stack_info *info)
 	if (stack < begin || stack > end)
 		return false;
 
-	info->type	= STACK_TYPE_SOFTIRQ;
-	info->begin	= begin;
-	info->end	= end;
+	info->type = STACK_TYPE_SOFTIRQ;
+	info->begin = begin;
+	info->end = end;
 
 	/*
 	 * The next stack pointer is stored at the beginning of the stack.
 	 * See irq_32.c.
 	 */
-	info->next_sp	= (unsigned long *)*begin;
+	info->next_sp = (unsigned long *)*begin;
 
 	return true;
 }
@@ -96,22 +96,21 @@ static bool in_doublefault_stack(unsigned long *stack, struct stack_info *info)
 	if ((void *)stack < begin || (void *)stack >= end)
 		return false;
 
-	info->type	= STACK_TYPE_EXCEPTION;
-	info->begin	= begin;
-	info->end	= end;
-	info->next_sp	= (unsigned long *)this_cpu_read(cpu_tss_rw.x86_tss.sp);
+	info->type = STACK_TYPE_EXCEPTION;
+	info->begin = begin;
+	info->end = end;
+	info->next_sp = (unsigned long *)this_cpu_read(cpu_tss_rw.x86_tss.sp);
 
 	return true;
 }
 
-
 int get_stack_info(unsigned long *stack, struct task_struct *task,
-		   struct stack_info *info, unsigned long *visit_mask)
+				   struct stack_info *info, unsigned long *visit_mask)
 {
 	if (!stack)
 		goto unknown;
 
-	task = task ? : current;
+	task = task ?: current;
 
 	if (in_task_stack(stack, task, info))
 		goto recursion_check;
@@ -139,8 +138,10 @@ recursion_check:
 	 * If it comes up a second time then there's something wrong going on:
 	 * just break out and report an unknown stack type.
 	 */
-	if (visit_mask) {
-		if (*visit_mask & (1UL << info->type)) {
+	if (visit_mask)
+	{
+		if (*visit_mask & (1UL << info->type))
+		{
 			printk_deferred_once(KERN_WARNING "WARNING: stack recursion on stack type %d\n", info->type);
 			goto unknown;
 		}
