@@ -23,9 +23,9 @@
 #ifndef AT_VECTOR_SIZE_ARCH
 #define AT_VECTOR_SIZE_ARCH 0
 #endif
-#define AT_VECTOR_SIZE (2*(AT_VECTOR_SIZE_ARCH + AT_VECTOR_SIZE_BASE + 1))
+#define AT_VECTOR_SIZE (2 * (AT_VECTOR_SIZE_ARCH + AT_VECTOR_SIZE_BASE + 1))
 
-#define INIT_PASID	0
+#define INIT_PASID 0
 
 struct address_space;
 struct mem_cgroup;
@@ -64,32 +64,42 @@ struct mem_cgroup;
  * and ensure that 'freelist' is aligned within struct slab.
  */
 #ifdef CONFIG_HAVE_ALIGNED_STRUCT_PAGE
-#define _struct_page_alignment	__aligned(2 * sizeof(unsigned long))
+#define _struct_page_alignment __aligned(2 * sizeof(unsigned long))
 #else
 #define _struct_page_alignment
 #endif
 
-struct page {
-	unsigned long flags;		/* Atomic flags, some possibly
-					 * updated asynchronously */
+/*
+	管理一个物理内存单元，每个page有一个全局唯一的编号：PFN（Page Frame Number）
+
+	内核会将划分出来的这些一页一页的内存块统一组织在一个全局数组 mem_map 中管理
+*/
+struct page
+{
+	unsigned long flags; /* Atomic flags, some possibly
+						  * updated asynchronously */
 	/*
 	 * Five words (20/40 bytes) are available in this union.
 	 * WARNING: bit 0 of the first word is used for PageTail(). That
 	 * means the other users of this union MUST NOT use the bit to
 	 * avoid collision and false-positive PageTail().
 	 */
-	union {
-		struct {	/* Page cache and anonymous pages */
+	union
+	{
+		struct
+		{ /* Page cache and anonymous pages */
 			/**
 			 * @lru: Pageout list, eg. active_list protected by
 			 * lruvec->lru_lock.  Sometimes used as a generic list
 			 * by the page owner.
 			 */
-			union {
+			union
+			{
 				struct list_head lru;
 
 				/* Or, for the Unevictable "LRU list" slot */
-				struct {
+				struct
+				{
 					/* Always even, to negate PageTail */
 					void *__filler;
 					/* Count page's or folio's mlocks */
@@ -102,7 +112,7 @@ struct page {
 			};
 			/* See page-flags.h for PAGE_MAPPING_FLAGS */
 			struct address_space *mapping;
-			pgoff_t index;		/* Our offset within mapping. */
+			pgoff_t index; /* Our offset within mapping. */
 			/**
 			 * @private: Mapping-private opaque data.
 			 * Usually used for buffer_heads if PagePrivate.
@@ -111,7 +121,8 @@ struct page {
 			 */
 			unsigned long private;
 		};
-		struct {	/* page_pool used by netstack */
+		struct
+		{ /* page_pool used by netstack */
 			/**
 			 * @pp_magic: magic value to avoid recycling non
 			 * page_pool allocated pages.
@@ -120,7 +131,8 @@ struct page {
 			struct page_pool *pp;
 			unsigned long _pp_mapping_pad;
 			unsigned long dma_addr;
-			union {
+			union
+			{
 				/**
 				 * dma_addr_upper: might require a 64-bit
 				 * value on 32-bit architectures.
@@ -133,8 +145,12 @@ struct page {
 				atomic_long_t pp_frag_count;
 			};
 		};
-		struct {	/* Tail pages of compound page */
-			unsigned long compound_head;	/* Bit zero is set */
+		/*
+			compound page是复合页
+		*/
+		struct
+		{								 /* Tail pages of compound page */
+			unsigned long compound_head; /* Bit zero is set */
 
 			/* First tail page only */
 			unsigned char compound_dtor;
@@ -145,18 +161,24 @@ struct page {
 			unsigned int compound_nr; /* 1 << compound_order */
 #endif
 		};
-		struct {	/* Second tail page of compound page */
-			unsigned long _compound_pad_1;	/* compound_head */
+		struct
+		{								   /* Second tail page of compound page */
+			unsigned long _compound_pad_1; /* compound_head */
 			unsigned long _compound_pad_2;
 			/* For both global and memcg */
 			struct list_head deferred_list;
 		};
-		struct {	/* Page table pages */
-			unsigned long _pt_pad_1;	/* compound_head */
-			pgtable_t pmd_huge_pte; /* protected by page->ptl */
-			unsigned long _pt_pad_2;	/* mapping */
-			union {
-				struct mm_struct *pt_mm; /* x86 pgds only */
+		/*
+			这个物理页用来存放页表
+		*/
+		struct
+		{							 /* Page table pages */
+			unsigned long _pt_pad_1; /* compound_head */
+			pgtable_t pmd_huge_pte;	 /* protected by page->ptl */
+			unsigned long _pt_pad_2; /* mapping */
+			union
+			{
+				struct mm_struct *pt_mm;   /* x86 pgds only */
 				atomic_t pt_frag_refcount; /* powerpc */
 			};
 #if ALLOC_SPLIT_PTLOCKS
@@ -165,7 +187,8 @@ struct page {
 			spinlock_t ptl;
 #endif
 		};
-		struct {	/* ZONE_DEVICE pages */
+		struct
+		{ /* ZONE_DEVICE pages */
 			/** @pgmap: Points to the hosting device page map. */
 			struct dev_pagemap *pgmap;
 			void *zone_device_data;
@@ -185,7 +208,8 @@ struct page {
 		struct rcu_head rcu_head;
 	};
 
-	union {		/* This union is 4 bytes in size. */
+	union
+	{ /* This union is 4 bytes in size. */
 		/*
 		 * If the page can be mapped to userspace, encodes the number
 		 * of times this page is referenced by a page table.
@@ -219,9 +243,9 @@ struct page {
 	 * WANT_PAGE_VIRTUAL in asm/page.h
 	 */
 #if defined(WANT_PAGE_VIRTUAL)
-	void *virtual;			/* Kernel virtual address (NULL if
-					   not kmapped, ie. highmem) */
-#endif /* WANT_PAGE_VIRTUAL */
+	void *virtual; /* Kernel virtual address (NULL if
+			  not kmapped, ie. highmem) */
+#endif			   /* WANT_PAGE_VIRTUAL */
 
 #ifdef LAST_CPUPID_NOT_IN_PAGE_FLAGS
 	int _last_cpupid;
@@ -253,22 +277,27 @@ struct page {
  * at an arbitrary page offset, but its kernel virtual address is aligned
  * to its size.
  */
-struct folio {
+struct folio
+{
 	/* private: don't document the anon union */
-	union {
-		struct {
-	/* public: */
+	union
+	{
+		struct
+		{
+			/* public: */
 			unsigned long flags;
-			union {
+			union
+			{
 				struct list_head lru;
-	/* private: avoid cluttering the output */
-				struct {
+				/* private: avoid cluttering the output */
+				struct
+				{
 					void *__filler;
-	/* public: */
+					/* public: */
 					unsigned int mlock_count;
-	/* private: */
+					/* private: */
 				};
-	/* public: */
+				/* public: */
 			};
 			struct address_space *mapping;
 			pgoff_t index;
@@ -278,14 +307,14 @@ struct folio {
 #ifdef CONFIG_MEMCG
 			unsigned long memcg_data;
 #endif
-	/* private: the union with struct page is transitional */
+			/* private: the union with struct page is transitional */
 		};
 		struct page page;
 	};
 };
 
 static_assert(sizeof(struct page) == sizeof(struct folio));
-#define FOLIO_MATCH(pg, fl)						\
+#define FOLIO_MATCH(pg, fl) \
 	static_assert(offsetof(struct page, pg) == offsetof(struct folio, fl))
 FOLIO_MATCH(flags, flags);
 FOLIO_MATCH(lru, lru);
@@ -319,10 +348,10 @@ static inline atomic_t *compound_pincount_ptr(struct page *page)
 /*
  * Used for sizing the vmemmap region on some architectures
  */
-#define STRUCT_PAGE_MAX_SHIFT	(order_base_2(sizeof(struct page)))
+#define STRUCT_PAGE_MAX_SHIFT (order_base_2(sizeof(struct page)))
 
-#define PAGE_FRAG_CACHE_MAX_SIZE	__ALIGN_MASK(32768, ~PAGE_MASK)
-#define PAGE_FRAG_CACHE_MAX_ORDER	get_order(PAGE_FRAG_CACHE_MAX_SIZE)
+#define PAGE_FRAG_CACHE_MAX_SIZE __ALIGN_MASK(32768, ~PAGE_MASK)
+#define PAGE_FRAG_CACHE_MAX_ORDER get_order(PAGE_FRAG_CACHE_MAX_SIZE)
 
 /*
  * page_private can be used on tail pages.  However, PagePrivate is only
@@ -330,7 +359,7 @@ static inline atomic_t *compound_pincount_ptr(struct page *page)
  * should be used for data that's ancillary to the head page (eg attaching
  * buffer heads to tail pages after attaching buffer heads to the head page)
  */
-#define page_private(page)		((page)->private)
+#define page_private(page) ((page)->private)
 
 static inline void set_page_private(struct page *page, unsigned long private)
 {
@@ -342,8 +371,9 @@ static inline void *folio_get_private(struct folio *folio)
 	return folio->private;
 }
 
-struct page_frag_cache {
-	void * va;
+struct page_frag_cache
+{
+	void *va;
 #if (PAGE_SIZE < PAGE_FRAG_CACHE_MAX_SIZE)
 	__u16 offset;
 	__u16 size;
@@ -353,7 +383,7 @@ struct page_frag_cache {
 	/* we maintain a pagecount bias, so that we dont dirty cache line
 	 * containing page->_refcount every time we allocate a fragment.
 	 */
-	unsigned int		pagecnt_bias;
+	unsigned int pagecnt_bias;
 	bool pfmemalloc;
 };
 
@@ -364,31 +394,38 @@ typedef unsigned long vm_flags_t;
  * conditions.  These are held in a global tree and are pinned by the VMAs that
  * map parts of them.
  */
-struct vm_region {
-	struct rb_node	vm_rb;		/* link in global region tree */
-	vm_flags_t	vm_flags;	/* VMA vm_flags */
-	unsigned long	vm_start;	/* start address of region */
-	unsigned long	vm_end;		/* region initialised to here */
-	unsigned long	vm_top;		/* region allocated to here */
-	unsigned long	vm_pgoff;	/* the offset in vm_file corresponding to vm_start */
-	struct file	*vm_file;	/* the backing file or NULL */
+struct vm_region
+{
+	struct rb_node vm_rb;	/* link in global region tree */
+	vm_flags_t vm_flags;	/* VMA vm_flags */
+	unsigned long vm_start; /* start address of region */
+	unsigned long vm_end;	/* region initialised to here */
+	unsigned long vm_top;	/* region allocated to here */
+	unsigned long vm_pgoff; /* the offset in vm_file corresponding to vm_start */
+	struct file *vm_file;	/* the backing file or NULL */
 
-	int		vm_usage;	/* region usage count (access under nommu_region_sem) */
-	bool		vm_icache_flushed : 1; /* true if the icache has been flushed for
-						* this region */
+	int vm_usage;				/* region usage count (access under nommu_region_sem) */
+	bool vm_icache_flushed : 1; /* true if the icache has been flushed for
+								 * this region */
 };
 
 #ifdef CONFIG_USERFAULTFD
-#define NULL_VM_UFFD_CTX ((struct vm_userfaultfd_ctx) { NULL, })
-struct vm_userfaultfd_ctx {
+#define NULL_VM_UFFD_CTX ((struct vm_userfaultfd_ctx){ \
+	NULL,                                              \
+})
+struct vm_userfaultfd_ctx
+{
 	struct userfaultfd_ctx *ctx;
 };
 #else /* CONFIG_USERFAULTFD */
-#define NULL_VM_UFFD_CTX ((struct vm_userfaultfd_ctx) {})
-struct vm_userfaultfd_ctx {};
+#define NULL_VM_UFFD_CTX ((struct vm_userfaultfd_ctx){})
+struct vm_userfaultfd_ctx
+{
+};
 #endif /* CONFIG_USERFAULTFD */
 
-struct anon_vma_name {
+struct anon_vma_name
+{
 	struct kref kref;
 	/* The name needs to be at the end because it is dynamically sized. */
 	char name[];
@@ -400,13 +437,23 @@ struct anon_vma_name {
  * space that has a special rule for the page-fault handlers (ie a shared
  * library, the executable area etc).
  */
-struct vm_area_struct {
+struct vm_area_struct
+{
 	/* The first cache line has the info for VMA tree walking. */
 
-	unsigned long vm_start;		/* Our start address within vm_mm. */
-	unsigned long vm_end;		/* The first byte after our end address
-					   within vm_mm. */
+	/*
+		每个 vm_area_struct 结构对应于虚拟内存空间中的唯一虚拟内存区域 VMA（代码段vma、数据段vma...）
+		vm_start的指针在vma之内，vm_end的指针在vma之外，vma区域之后一字节位置
+			所以 vm_area_struct 结构描述的是 [vm_start，vm_end) 这样一段左闭右开的虚拟内存区域
 
+	*/
+	unsigned long vm_start; /* Our start address within vm_mm. */
+	unsigned long vm_end;	/* The first byte after our end address
+				   within vm_mm. */
+
+	/*
+		所有的 vm area 被链起来，mm_struct的mmap成员指向链表第一个元素
+	*/
 	/* linked list of VM areas per task, sorted by address */
 	struct vm_area_struct *vm_next, *vm_prev;
 
@@ -422,14 +469,26 @@ struct vm_area_struct {
 
 	/* Second cache line starts here. */
 
-	struct mm_struct *vm_mm;	/* The address space we belong to. */
+	/*
+		指回mm_struct结构体
+	*/
+	struct mm_struct *vm_mm; /* The address space we belong to. */
 
 	/*
 	 * Access permissions of this VMA.
 	 * See vmf_insert_mixed_prot() for discussion.
 	 */
+	/*
+		定义虚拟内存区域的访问权限和行为规范
+
+		一块 VMA 由许多的虚拟页 (page) 组成，每个虚拟页都有可能经过页表映射到一个物理页中，
+			页表项中存在一些做权限控制的位，就由vm_page_prot来定义
+
+		vm_page_prot偏向定义单个页的权限信息，vm_flags 偏向定义整个vma的权限信息，在mm.h中有VM_READ等flag设定
+			可以通过 vma->vm_page_prot = vm_get_page_prot(vma->vm_flags) 实现到具体页面访问权限 vm_page_prot 的转换。
+	*/
 	pgprot_t vm_page_prot;
-	unsigned long vm_flags;		/* Flags, see mm.h. */
+	unsigned long vm_flags; /* Flags, see mm.h. */
 
 	/*
 	 * For areas with an address space and backing store,
@@ -439,8 +498,10 @@ struct vm_area_struct {
 	 * containing the name given to the vma, or NULL if unnamed.
 	 */
 
-	union {
-		struct {
+	union
+	{
+		struct
+		{
 			struct rb_node rb;
 			unsigned long rb_subtree_last;
 		} shared;
@@ -457,52 +518,84 @@ struct vm_area_struct {
 	 * can only be in the i_mmap tree.  An anonymous MAP_PRIVATE, stack
 	 * or brk vma (with NULL file) can only be in an anon_vma list.
 	 */
+	/*
+		当我们调用 malloc 申请内存时，如果申请的是小块内存（低于 128K）则会使用 do_brk() 系统调用通过调整堆中的 brk 指针大小来增加或者回收堆内存
+			如果申请的是比较大块的内存（超过 128K）时，则会调用 mmap 在上图虚拟内存空间中的文件映射与匿名映射区创建出一块 VMA 内存区域（这里是匿名映射）
+			这块匿名映射区域就用 struct anon_vma 结构表示
+
+		当调用 mmap 进行文件映射时，vm_file 属性就用来关联被映射的文件。这样一来虚拟内存区域就与映射文件关联了起来。
+		vm_pgoff 则表示映射进虚拟内存中的文件内容，在文件中的偏移。
+	*/
 	struct list_head anon_vma_chain; /* Serialized by mmap_lock &
-					  * page_table_lock */
-	struct anon_vma *anon_vma;	/* Serialized by page_table_lock */
+									  * page_table_lock */
+	struct anon_vma *anon_vma;		 /* Serialized by page_table_lock */
 
 	/* Function pointers to deal with this struct. */
+	/*
+		
+	*/
 	const struct vm_operations_struct *vm_ops;
 
 	/* Information about our backing store: */
-	unsigned long vm_pgoff;		/* Offset (within vm_file) in PAGE_SIZE
-					   units */
-	struct file * vm_file;		/* File we map to (can be NULL). */
-	void * vm_private_data;		/* was vm_pte (shared mem) */
+	unsigned long vm_pgoff; /* Offset (within vm_file) in PAGE_SIZE
+				   units */
+	struct file *vm_file;	/* File we map to (can be NULL). */
+
+	void *vm_private_data;	/* was vm_pte (shared mem) */
 
 #ifdef CONFIG_SWAP
 	atomic_long_t swap_readahead_info;
 #endif
 #ifndef CONFIG_MMU
-	struct vm_region *vm_region;	/* NOMMU mapping region */
+	struct vm_region *vm_region; /* NOMMU mapping region */
 #endif
 #ifdef CONFIG_NUMA
-	struct mempolicy *vm_policy;	/* NUMA policy for the VMA */
+	struct mempolicy *vm_policy; /* NUMA policy for the VMA */
 #endif
 	struct vm_userfaultfd_ctx vm_userfaultfd_ctx;
 } __randomize_layout;
 
 struct kioctx_table;
-struct mm_struct {
-	struct {
-		struct vm_area_struct *mmap;		/* list of VMAs */
+
+/*
+	虚拟内存空间对应的结构体
+	struct task_struct中存在struct mm_struct类型的成员，说明虚拟内存由进程结构体来管理
+*/
+struct mm_struct
+{
+	struct
+	{
+		struct vm_area_struct *mmap; /* list of VMAs */
 		struct rb_root mm_rb;
-		u64 vmacache_seqnum;                   /* per-thread vmacache */
+		u64 vmacache_seqnum; /* per-thread vmacache */
 #ifdef CONFIG_MMU
-		unsigned long (*get_unmapped_area) (struct file *filp,
-				unsigned long addr, unsigned long len,
-				unsigned long pgoff, unsigned long flags);
+		unsigned long (*get_unmapped_area)(struct file *filp,
+										   unsigned long addr, unsigned long len,
+										   unsigned long pgoff, unsigned long flags);
 #endif
-		unsigned long mmap_base;	/* base of mmap area */
-		unsigned long mmap_legacy_base;	/* base of mmap area in bottom-up allocations */
+		/*
+			内存映射区的起始地址，自顶向下增长，存放运行时的动态链接库、文件映射、mmap调用的映射等内容
+		*/
+		unsigned long mmap_base; /* base of mmap area */
+
+		unsigned long mmap_legacy_base; /* base of mmap area in bottom-up allocations */
 #ifdef CONFIG_HAVE_ARCH_COMPAT_MMAP_BASES
 		/* Base addresses for compatible mmap() */
 		unsigned long mmap_compat_base;
 		unsigned long mmap_compat_legacy_base;
 #endif
-		unsigned long task_size;	/* size of task vm space */
-		unsigned long highest_vm_end;	/* highest vma end address */
-		pgd_t * pgd;
+		/*
+			虚拟内存空间中用户态所占用大小，32位下是3G，0-0xC000 000，64位下是128T，0-0x0000 7FFF FFFF F000
+		*/
+		unsigned long task_size; /* size of task vm space */
+
+		unsigned long highest_vm_end; /* highest vma end address */
+
+		/*
+			顶级页表的起始地址（也是一个虚拟地址）
+			该地址会在上下文切换时（switch_mm_irqs_off），被转换为物理地址然后加载到寄存器中，（x86是cr3寄存器，arm64是ttbr0寄存器）
+		*/
+		pgd_t *pgd;
 
 #ifdef CONFIG_MEMBARRIER
 		/**
@@ -535,13 +628,13 @@ struct mm_struct {
 		atomic_t mm_count;
 
 #ifdef CONFIG_MMU
-		atomic_long_t pgtables_bytes;	/* PTE page table pages */
+		atomic_long_t pgtables_bytes; /* PTE page table pages */
 #endif
-		int map_count;			/* number of VMAs */
+		int map_count; /* number of VMAs */
 
 		spinlock_t page_table_lock; /* Protects page tables and some
-					     * counters
-					     */
+									 * counters
+									 */
 		/*
 		 * With some kernel config, the current mmap_lock's offset
 		 * inside 'mm_struct' is at 0x120, which is very optimal, as
@@ -557,21 +650,44 @@ struct mm_struct {
 		struct rw_semaphore mmap_lock;
 
 		struct list_head mmlist; /* List of maybe swapped mm's.	These
-					  * are globally strung together off
-					  * init_mm.mmlist, and are protected
-					  * by mmlist_lock
-					  */
-
+								  * are globally strung together off
+								  * init_mm.mmlist, and are protected
+								  * by mmlist_lock
+								  */
 
 		unsigned long hiwater_rss; /* High-watermark of RSS usage */
 		unsigned long hiwater_vm;  /* High-water virtual memory usage */
 
-		unsigned long total_vm;	   /* Total pages mapped */
-		unsigned long locked_vm;   /* Pages that have PG_mlocked set */
-		atomic64_t    pinned_vm;   /* Refcount permanently increased */
-		unsigned long data_vm;	   /* VM_WRITE & ~VM_SHARED & ~VM_STACK */
-		unsigned long exec_vm;	   /* VM_EXEC & ~VM_WRITE & ~VM_STACK */
-		unsigned long stack_vm;	   /* VM_STACK */
+		/*
+			虚拟内存空间中，映射到物理内存的页总数
+		*/
+		unsigned long total_vm; /* Total pages mapped */
+
+		/*
+			不能被换出到磁盘上的页数
+		*/
+		unsigned long locked_vm; /* Pages that have PG_mlocked set */
+
+		/*
+			不能被换出，也不能被移动的页数
+		*/
+		atomic64_t pinned_vm; /* Refcount permanently increased */
+
+		/*
+			数据段已映射的页数
+		*/
+		unsigned long data_vm; /* VM_WRITE & ~VM_SHARED & ~VM_STACK */
+
+		/*
+			代码段已映射的页数
+		*/
+		unsigned long exec_vm; /* VM_EXEC & ~VM_WRITE & ~VM_STACK */
+
+		/*
+			栈中已映射的页数
+		*/
+		unsigned long stack_vm; /* VM_STACK */
+
 		unsigned long def_flags;
 
 		/**
@@ -583,8 +699,23 @@ struct mm_struct {
 
 		spinlock_t arg_lock; /* protect the below fields */
 
+		/*
+			代码段，数据段的边界指针
+
+			没有BSS的边界指针，因为end_data和start_brk中间就是BSS
+		*/
 		unsigned long start_code, end_code, start_data, end_data;
+
+		/*
+			start_brk是堆的起始，brk是堆的结束，自底向上增长，每次malloc分配内存时，brk会增加
+
+			start_stack是栈底，存放在RBP寄存器，栈顶存放在RSP寄存器中
+		*/
 		unsigned long start_brk, brk, start_stack;
+
+		/*
+			arg是参数，env是环境变量，它们都存放在栈底再靠上的位置
+		*/
 		unsigned long arg_start, arg_end, env_start, env_end;
 
 		unsigned long saved_auxv[AT_VECTOR_SIZE]; /* for /proc/PID/auxv */
@@ -603,8 +734,8 @@ struct mm_struct {
 		unsigned long flags; /* Must use atomic bitops to access */
 
 #ifdef CONFIG_AIO
-		spinlock_t			ioctx_lock;
-		struct kioctx_table __rcu	*ioctx_table;
+		spinlock_t ioctx_lock;
+		struct kioctx_table __rcu *ioctx_table;
 #endif
 #ifdef CONFIG_MEMCG
 		/*
@@ -738,49 +869,53 @@ typedef __bitwise unsigned int vm_fault_t;
  * @VM_FAULT_HINDEX_MASK:	mask HINDEX value
  *
  */
-enum vm_fault_reason {
-	VM_FAULT_OOM            = (__force vm_fault_t)0x000001,
-	VM_FAULT_SIGBUS         = (__force vm_fault_t)0x000002,
-	VM_FAULT_MAJOR          = (__force vm_fault_t)0x000004,
-	VM_FAULT_WRITE          = (__force vm_fault_t)0x000008,
-	VM_FAULT_HWPOISON       = (__force vm_fault_t)0x000010,
+enum vm_fault_reason
+{
+	VM_FAULT_OOM = (__force vm_fault_t)0x000001,
+	VM_FAULT_SIGBUS = (__force vm_fault_t)0x000002,
+	VM_FAULT_MAJOR = (__force vm_fault_t)0x000004,
+	VM_FAULT_WRITE = (__force vm_fault_t)0x000008,
+	VM_FAULT_HWPOISON = (__force vm_fault_t)0x000010,
 	VM_FAULT_HWPOISON_LARGE = (__force vm_fault_t)0x000020,
-	VM_FAULT_SIGSEGV        = (__force vm_fault_t)0x000040,
-	VM_FAULT_NOPAGE         = (__force vm_fault_t)0x000100,
-	VM_FAULT_LOCKED         = (__force vm_fault_t)0x000200,
-	VM_FAULT_RETRY          = (__force vm_fault_t)0x000400,
-	VM_FAULT_FALLBACK       = (__force vm_fault_t)0x000800,
-	VM_FAULT_DONE_COW       = (__force vm_fault_t)0x001000,
-	VM_FAULT_NEEDDSYNC      = (__force vm_fault_t)0x002000,
-	VM_FAULT_COMPLETED      = (__force vm_fault_t)0x004000,
-	VM_FAULT_HINDEX_MASK    = (__force vm_fault_t)0x0f0000,
+	VM_FAULT_SIGSEGV = (__force vm_fault_t)0x000040,
+	VM_FAULT_NOPAGE = (__force vm_fault_t)0x000100,
+	VM_FAULT_LOCKED = (__force vm_fault_t)0x000200,
+	VM_FAULT_RETRY = (__force vm_fault_t)0x000400,
+	VM_FAULT_FALLBACK = (__force vm_fault_t)0x000800,
+	VM_FAULT_DONE_COW = (__force vm_fault_t)0x001000,
+	VM_FAULT_NEEDDSYNC = (__force vm_fault_t)0x002000,
+	VM_FAULT_COMPLETED = (__force vm_fault_t)0x004000,
+	VM_FAULT_HINDEX_MASK = (__force vm_fault_t)0x0f0000,
 };
 
 /* Encode hstate index for a hwpoisoned large page */
 #define VM_FAULT_SET_HINDEX(x) ((__force vm_fault_t)((x) << 16))
 #define VM_FAULT_GET_HINDEX(x) (((__force unsigned int)(x) >> 16) & 0xf)
 
-#define VM_FAULT_ERROR (VM_FAULT_OOM | VM_FAULT_SIGBUS |	\
-			VM_FAULT_SIGSEGV | VM_FAULT_HWPOISON |	\
-			VM_FAULT_HWPOISON_LARGE | VM_FAULT_FALLBACK)
+#define VM_FAULT_ERROR (VM_FAULT_OOM | VM_FAULT_SIGBUS |       \
+						VM_FAULT_SIGSEGV | VM_FAULT_HWPOISON | \
+						VM_FAULT_HWPOISON_LARGE | VM_FAULT_FALLBACK)
 
-#define VM_FAULT_RESULT_TRACE \
-	{ VM_FAULT_OOM,                 "OOM" },	\
-	{ VM_FAULT_SIGBUS,              "SIGBUS" },	\
-	{ VM_FAULT_MAJOR,               "MAJOR" },	\
-	{ VM_FAULT_WRITE,               "WRITE" },	\
-	{ VM_FAULT_HWPOISON,            "HWPOISON" },	\
-	{ VM_FAULT_HWPOISON_LARGE,      "HWPOISON_LARGE" },	\
-	{ VM_FAULT_SIGSEGV,             "SIGSEGV" },	\
-	{ VM_FAULT_NOPAGE,              "NOPAGE" },	\
-	{ VM_FAULT_LOCKED,              "LOCKED" },	\
-	{ VM_FAULT_RETRY,               "RETRY" },	\
-	{ VM_FAULT_FALLBACK,            "FALLBACK" },	\
-	{ VM_FAULT_DONE_COW,            "DONE_COW" },	\
-	{ VM_FAULT_NEEDDSYNC,           "NEEDDSYNC" }
+#define VM_FAULT_RESULT_TRACE                        \
+	{VM_FAULT_OOM, "OOM"},                           \
+		{VM_FAULT_SIGBUS, "SIGBUS"},                 \
+		{VM_FAULT_MAJOR, "MAJOR"},                   \
+		{VM_FAULT_WRITE, "WRITE"},                   \
+		{VM_FAULT_HWPOISON, "HWPOISON"},             \
+		{VM_FAULT_HWPOISON_LARGE, "HWPOISON_LARGE"}, \
+		{VM_FAULT_SIGSEGV, "SIGSEGV"},               \
+		{VM_FAULT_NOPAGE, "NOPAGE"},                 \
+		{VM_FAULT_LOCKED, "LOCKED"},                 \
+		{VM_FAULT_RETRY, "RETRY"},                   \
+		{VM_FAULT_FALLBACK, "FALLBACK"},             \
+		{VM_FAULT_DONE_COW, "DONE_COW"},             \
+	{                                                \
+		VM_FAULT_NEEDDSYNC, "NEEDDSYNC"              \
+	}
 
-struct vm_special_mapping {
-	const char *name;	/* The name, e.g. "[vdso]". */
+struct vm_special_mapping
+{
+	const char *name; /* The name, e.g. "[vdso]". */
 
 	/*
 	 * If .fault is not provided, this points to a
@@ -795,14 +930,15 @@ struct vm_special_mapping {
 	 * on the special mapping.  If used, .pages is not checked.
 	 */
 	vm_fault_t (*fault)(const struct vm_special_mapping *sm,
-				struct vm_area_struct *vma,
-				struct vm_fault *vmf);
+						struct vm_area_struct *vma,
+						struct vm_fault *vmf);
 
 	int (*mremap)(const struct vm_special_mapping *sm,
-		     struct vm_area_struct *new_vma);
+				  struct vm_area_struct *new_vma);
 };
 
-enum tlb_flush_reason {
+enum tlb_flush_reason
+{
 	TLB_FLUSH_ON_TASK_SWITCH,
 	TLB_REMOTE_SHOOTDOWN,
 	TLB_LOCAL_SHOOTDOWN,
@@ -811,11 +947,12 @@ enum tlb_flush_reason {
 	NR_TLB_FLUSH_REASONS,
 };
 
- /*
-  * A swap entry has to fit into a "unsigned long", as the entry is hidden
-  * in the "index" field of the swapper address space.
-  */
-typedef struct {
+/*
+ * A swap entry has to fit into a "unsigned long", as the entry is hidden
+ * in the "index" field of the swapper address space.
+ */
+typedef struct
+{
 	unsigned long val;
 } swp_entry_t;
 
@@ -860,19 +997,20 @@ typedef struct {
  * FAULT_FLAG_UNSHARE is ignored and treated like an ordinary read fault when
  * no existing R/O-mapped anonymous page is encountered.
  */
-enum fault_flag {
-	FAULT_FLAG_WRITE =		1 << 0,
-	FAULT_FLAG_MKWRITE =		1 << 1,
-	FAULT_FLAG_ALLOW_RETRY =	1 << 2,
-	FAULT_FLAG_RETRY_NOWAIT = 	1 << 3,
-	FAULT_FLAG_KILLABLE =		1 << 4,
-	FAULT_FLAG_TRIED = 		1 << 5,
-	FAULT_FLAG_USER =		1 << 6,
-	FAULT_FLAG_REMOTE =		1 << 7,
-	FAULT_FLAG_INSTRUCTION =	1 << 8,
-	FAULT_FLAG_INTERRUPTIBLE =	1 << 9,
-	FAULT_FLAG_UNSHARE =		1 << 10,
-	FAULT_FLAG_ORIG_PTE_VALID =	1 << 11,
+enum fault_flag
+{
+	FAULT_FLAG_WRITE = 1 << 0,
+	FAULT_FLAG_MKWRITE = 1 << 1,
+	FAULT_FLAG_ALLOW_RETRY = 1 << 2,
+	FAULT_FLAG_RETRY_NOWAIT = 1 << 3,
+	FAULT_FLAG_KILLABLE = 1 << 4,
+	FAULT_FLAG_TRIED = 1 << 5,
+	FAULT_FLAG_USER = 1 << 6,
+	FAULT_FLAG_REMOTE = 1 << 7,
+	FAULT_FLAG_INSTRUCTION = 1 << 8,
+	FAULT_FLAG_INTERRUPTIBLE = 1 << 9,
+	FAULT_FLAG_UNSHARE = 1 << 10,
+	FAULT_FLAG_ORIG_PTE_VALID = 1 << 11,
 };
 
 typedef unsigned int __bitwise zap_flags_t;

@@ -1966,7 +1966,7 @@ extern void ia64_set_curr_task(int cpu, struct task_struct *p);
 void yield(void);
 
 /*
-	联合体大小由最大的决定，THREAD_SIZE在arm下是8192B，占据两个page frame
+	联合体大小由最大的决定，THREAD_SIZE在arm下是8KB，占据两个page frame
 	整个作为线程的内核栈使用，但是空间底部实际用来存储struct thread_info
 */
 union thread_union

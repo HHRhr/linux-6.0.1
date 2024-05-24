@@ -19,8 +19,7 @@ EXPORT_SYMBOL(physical_mask);
 #endif
 
 #ifndef CONFIG_PARAVIRT
-static inline
-void paravirt_tlb_remove_table(struct mmu_gather *tlb, void *table)
+static inline void paravirt_tlb_remove_table(struct mmu_gather *tlb, void *table)
 {
 	tlb_remove_page(tlb, table);
 }
@@ -86,9 +85,9 @@ void ___p4d_free_tlb(struct mmu_gather *tlb, p4d_t *p4d)
 	paravirt_release_p4d(__pa(p4d) >> PAGE_SHIFT);
 	paravirt_tlb_remove_table(tlb, virt_to_page(p4d));
 }
-#endif	/* CONFIG_PGTABLE_LEVELS > 4 */
-#endif	/* CONFIG_PGTABLE_LEVELS > 3 */
-#endif	/* CONFIG_PGTABLE_LEVELS > 2 */
+#endif /* CONFIG_PGTABLE_LEVELS > 4 */
+#endif /* CONFIG_PGTABLE_LEVELS > 3 */
+#endif /* CONFIG_PGTABLE_LEVELS > 2 */
 
 static inline void pgd_list_add(pgd_t *pgd)
 {
@@ -104,11 +103,10 @@ static inline void pgd_list_del(pgd_t *pgd)
 	list_del(&page->lru);
 }
 
-#define UNSHARED_PTRS_PER_PGD				\
+#define UNSHARED_PTRS_PER_PGD \
 	(SHARED_KERNEL_PMD ? KERNEL_PGD_BOUNDARY : PTRS_PER_PGD)
-#define MAX_UNSHARED_PTRS_PER_PGD			\
+#define MAX_UNSHARED_PTRS_PER_PGD \
 	max_t(size_t, KERNEL_PGD_BOUNDARY, PTRS_PER_PGD)
-
 
 static void pgd_set_mm(pgd_t *pgd, struct mm_struct *mm)
 {
@@ -126,15 +124,17 @@ static void pgd_ctor(struct mm_struct *mm, pgd_t *pgd)
 	   ptes in non-PAE, or shared PMD in PAE), then just copy the
 	   references from swapper_pg_dir. */
 	if (CONFIG_PGTABLE_LEVELS == 2 ||
-	    (CONFIG_PGTABLE_LEVELS == 3 && SHARED_KERNEL_PMD) ||
-	    CONFIG_PGTABLE_LEVELS >= 4) {
+		(CONFIG_PGTABLE_LEVELS == 3 && SHARED_KERNEL_PMD) ||
+		CONFIG_PGTABLE_LEVELS >= 4)
+	{
 		clone_pgd_range(pgd + KERNEL_PGD_BOUNDARY,
-				swapper_pg_dir + KERNEL_PGD_BOUNDARY,
-				KERNEL_PGD_PTRS);
+						swapper_pg_dir + KERNEL_PGD_BOUNDARY,
+						KERNEL_PGD_PTRS);
 	}
 
 	/* list required to sync kernel mapping updates */
-	if (!SHARED_KERNEL_PMD) {
+	if (!SHARED_KERNEL_PMD)
+	{
 		pgd_set_mm(pgd, mm);
 		pgd_list_add(pgd);
 	}
@@ -173,16 +173,15 @@ static void pgd_dtor(pgd_t *pgd)
  * not shared between pagetables (!SHARED_KERNEL_PMDS), we allocate
  * and initialize the kernel pmds here.
  */
-#define PREALLOCATED_PMDS	UNSHARED_PTRS_PER_PGD
-#define MAX_PREALLOCATED_PMDS	MAX_UNSHARED_PTRS_PER_PGD
+#define PREALLOCATED_PMDS UNSHARED_PTRS_PER_PGD
+#define MAX_PREALLOCATED_PMDS MAX_UNSHARED_PTRS_PER_PGD
 
 /*
  * We allocate separate PMDs for the kernel part of the user page-table
  * when PTI is enabled. We need them to map the per-process LDT into the
  * user-space page-table.
  */
-#define PREALLOCATED_USER_PMDS	 (boot_cpu_has(X86_FEATURE_PTI) ? \
-					KERNEL_PGD_PTRS : 0)
+#define PREALLOCATED_USER_PMDS (boot_cpu_has(X86_FEATURE_PTI) ? KERNEL_PGD_PTRS : 0)
 #define MAX_PREALLOCATED_USER_PMDS KERNEL_PGD_PTRS
 
 void pud_populate(struct mm_struct *mm, pud_t *pudp, pmd_t *pmd)
@@ -201,21 +200,22 @@ void pud_populate(struct mm_struct *mm, pud_t *pudp, pmd_t *pmd)
 	 */
 	flush_tlb_mm(mm);
 }
-#else  /* !CONFIG_X86_PAE */
+#else /* !CONFIG_X86_PAE */
 
 /* No need to prepopulate any pagetable entries in non-PAE modes. */
-#define PREALLOCATED_PMDS	0
-#define MAX_PREALLOCATED_PMDS	0
-#define PREALLOCATED_USER_PMDS	 0
+#define PREALLOCATED_PMDS 0
+#define MAX_PREALLOCATED_PMDS 0
+#define PREALLOCATED_USER_PMDS 0
 #define MAX_PREALLOCATED_USER_PMDS 0
-#endif	/* CONFIG_X86_PAE */
+#endif /* CONFIG_X86_PAE */
 
 static void free_pmds(struct mm_struct *mm, pmd_t *pmds[], int count)
 {
 	int i;
 
 	for (i = 0; i < count; i++)
-		if (pmds[i]) {
+		if (pmds[i])
+		{
 			pgtable_pmd_page_dtor(virt_to_page(pmds[i]));
 			free_page((unsigned long)pmds[i]);
 			mm_dec_nr_pmds(mm);
@@ -231,11 +231,13 @@ static int preallocate_pmds(struct mm_struct *mm, pmd_t *pmds[], int count)
 	if (mm == &init_mm)
 		gfp &= ~__GFP_ACCOUNT;
 
-	for (i = 0; i < count; i++) {
+	for (i = 0; i < count; i++)
+	{
 		pmd_t *pmd = (pmd_t *)__get_free_page(gfp);
 		if (!pmd)
 			failed = true;
-		if (pmd && !pgtable_pmd_page_ctor(virt_to_page(pmd))) {
+		if (pmd && !pgtable_pmd_page_ctor(virt_to_page(pmd)))
+		{
 			free_page((unsigned long)pmd);
 			pmd = NULL;
 			failed = true;
@@ -245,7 +247,8 @@ static int preallocate_pmds(struct mm_struct *mm, pmd_t *pmds[], int count)
 		pmds[i] = pmd;
 	}
 
-	if (failed) {
+	if (failed)
+	{
 		free_pmds(mm, pmds, count);
 		return -ENOMEM;
 	}
@@ -263,7 +266,8 @@ static void mop_up_one_pmd(struct mm_struct *mm, pgd_t *pgdp)
 {
 	pgd_t pgd = *pgdp;
 
-	if (pgd_val(pgd) != 0) {
+	if (pgd_val(pgd) != 0)
+	{
 		pmd_t *pmd = (pmd_t *)pgd_page_vaddr(pgd);
 
 		pgd_clear(pgdp);
@@ -305,12 +309,13 @@ static void pgd_prepopulate_pmd(struct mm_struct *mm, pgd_t *pgd, pmd_t *pmds[])
 	p4d = p4d_offset(pgd, 0);
 	pud = pud_offset(p4d, 0);
 
-	for (i = 0; i < PREALLOCATED_PMDS; i++, pud++) {
+	for (i = 0; i < PREALLOCATED_PMDS; i++, pud++)
+	{
 		pmd_t *pmd = pmds[i];
 
 		if (i >= KERNEL_PGD_BOUNDARY)
 			memcpy(pmd, (pmd_t *)pgd_page_vaddr(swapper_pg_dir[i]),
-			       sizeof(pmd_t) * PTRS_PER_PMD);
+				   sizeof(pmd_t) * PTRS_PER_PMD);
 
 		pud_populate(mm, pud, pmd);
 	}
@@ -318,7 +323,7 @@ static void pgd_prepopulate_pmd(struct mm_struct *mm, pgd_t *pgd, pmd_t *pmds[])
 
 #ifdef CONFIG_PAGE_TABLE_ISOLATION
 static void pgd_prepopulate_user_pmd(struct mm_struct *mm,
-				     pgd_t *k_pgd, pmd_t *pmds[])
+									 pgd_t *k_pgd, pmd_t *pmds[])
 {
 	pgd_t *s_pgd = kernel_to_user_pgdp(swapper_pg_dir);
 	pgd_t *u_pgd = kernel_to_user_pgdp(k_pgd);
@@ -332,19 +337,19 @@ static void pgd_prepopulate_user_pmd(struct mm_struct *mm,
 	s_pgd += KERNEL_PGD_BOUNDARY;
 	u_pud += KERNEL_PGD_BOUNDARY;
 
-	for (i = 0; i < PREALLOCATED_USER_PMDS; i++, u_pud++, s_pgd++) {
+	for (i = 0; i < PREALLOCATED_USER_PMDS; i++, u_pud++, s_pgd++)
+	{
 		pmd_t *pmd = pmds[i];
 
 		memcpy(pmd, (pmd_t *)pgd_page_vaddr(*s_pgd),
-		       sizeof(pmd_t) * PTRS_PER_PMD);
+			   sizeof(pmd_t) * PTRS_PER_PMD);
 
 		pud_populate(mm, u_pud, pmd);
 	}
-
 }
 #else
 static void pgd_prepopulate_user_pmd(struct mm_struct *mm,
-				     pgd_t *k_pgd, pmd_t *pmds[])
+									 pgd_t *k_pgd, pmd_t *pmds[])
 {
 }
 #endif
@@ -359,8 +364,8 @@ static void pgd_prepopulate_user_pmd(struct mm_struct *mm,
 
 #include <linux/slab.h>
 
-#define PGD_SIZE	(PTRS_PER_PGD * sizeof(pgd_t))
-#define PGD_ALIGN	32
+#define PGD_SIZE (PTRS_PER_PGD * sizeof(pgd_t))
+#define PGD_ALIGN 32
 
 static struct kmem_cache *pgd_cache;
 
@@ -380,7 +385,7 @@ void __init pgtable_cache_init(void)
 	 * During boot time, we create a 32-byte slab for pgd table allocation.
 	 */
 	pgd_cache = kmem_cache_create("pgd_cache", PGD_SIZE, PGD_ALIGN,
-				      SLAB_PANIC, NULL);
+								  SLAB_PANIC, NULL);
 }
 
 static inline pgd_t *_pgd_alloc(void)
@@ -391,7 +396,7 @@ static inline pgd_t *_pgd_alloc(void)
 	 */
 	if (!SHARED_KERNEL_PMD)
 		return (pgd_t *)__get_free_pages(GFP_PGTABLE_USER,
-						 PGD_ALLOCATION_ORDER);
+										 PGD_ALLOCATION_ORDER);
 
 	/*
 	 * Now PAE kernel is not running as a Xen domain. We can allocate
@@ -412,7 +417,7 @@ static inline void _pgd_free(pgd_t *pgd)
 static inline pgd_t *_pgd_alloc(void)
 {
 	return (pgd_t *)__get_free_pages(GFP_PGTABLE_USER,
-					 PGD_ALLOCATION_ORDER);
+									 PGD_ALLOCATION_ORDER);
 }
 
 static inline void _pgd_free(pgd_t *pgd)
@@ -432,6 +437,9 @@ pgd_t *pgd_alloc(struct mm_struct *mm)
 	if (pgd == NULL)
 		goto out;
 
+	/*
+		为子进程分配顶级页表起始地址
+	*/
 	mm->pgd = pgd;
 
 	if (preallocate_pmds(mm, pmds, PREALLOCATED_PMDS) != 0)
@@ -450,6 +458,9 @@ pgd_t *pgd_alloc(struct mm_struct *mm)
 	 */
 	spin_lock(&pgd_lock);
 
+	/*
+		拷贝内核页表到子进程中，起始地址
+	*/
 	pgd_ctor(mm, pgd);
 	pgd_prepopulate_pmd(mm, pgd, pmds);
 	pgd_prepopulate_user_pmd(mm, pgd, u_pmds);
@@ -484,8 +495,8 @@ void pgd_free(struct mm_struct *mm, pgd_t *pgd)
  * set. In that case we do actually need to write the PTE.
  */
 int ptep_set_access_flags(struct vm_area_struct *vma,
-			  unsigned long address, pte_t *ptep,
-			  pte_t entry, int dirty)
+						  unsigned long address, pte_t *ptep,
+						  pte_t entry, int dirty)
 {
 	int changed = !pte_same(*ptep, entry);
 
@@ -497,14 +508,15 @@ int ptep_set_access_flags(struct vm_area_struct *vma,
 
 #ifdef CONFIG_TRANSPARENT_HUGEPAGE
 int pmdp_set_access_flags(struct vm_area_struct *vma,
-			  unsigned long address, pmd_t *pmdp,
-			  pmd_t entry, int dirty)
+						  unsigned long address, pmd_t *pmdp,
+						  pmd_t entry, int dirty)
 {
 	int changed = !pmd_same(*pmdp, entry);
 
 	VM_BUG_ON(address & ~HPAGE_PMD_MASK);
 
-	if (changed && dirty) {
+	if (changed && dirty)
+	{
 		set_pmd(pmdp, entry);
 		/*
 		 * We had a write-protection fault here and changed the pmd
@@ -518,13 +530,14 @@ int pmdp_set_access_flags(struct vm_area_struct *vma,
 }
 
 int pudp_set_access_flags(struct vm_area_struct *vma, unsigned long address,
-			  pud_t *pudp, pud_t entry, int dirty)
+						  pud_t *pudp, pud_t entry, int dirty)
 {
 	int changed = !pud_same(*pudp, entry);
 
 	VM_BUG_ON(address & ~HPAGE_PUD_MASK);
 
-	if (changed && dirty) {
+	if (changed && dirty)
+	{
 		set_pud(pudp, entry);
 		/*
 		 * We had a write-protection fault here and changed the pud
@@ -539,44 +552,44 @@ int pudp_set_access_flags(struct vm_area_struct *vma, unsigned long address,
 #endif
 
 int ptep_test_and_clear_young(struct vm_area_struct *vma,
-			      unsigned long addr, pte_t *ptep)
+							  unsigned long addr, pte_t *ptep)
 {
 	int ret = 0;
 
 	if (pte_young(*ptep))
 		ret = test_and_clear_bit(_PAGE_BIT_ACCESSED,
-					 (unsigned long *) &ptep->pte);
+								 (unsigned long *)&ptep->pte);
 
 	return ret;
 }
 
 #ifdef CONFIG_TRANSPARENT_HUGEPAGE
 int pmdp_test_and_clear_young(struct vm_area_struct *vma,
-			      unsigned long addr, pmd_t *pmdp)
+							  unsigned long addr, pmd_t *pmdp)
 {
 	int ret = 0;
 
 	if (pmd_young(*pmdp))
 		ret = test_and_clear_bit(_PAGE_BIT_ACCESSED,
-					 (unsigned long *)pmdp);
+								 (unsigned long *)pmdp);
 
 	return ret;
 }
 int pudp_test_and_clear_young(struct vm_area_struct *vma,
-			      unsigned long addr, pud_t *pudp)
+							  unsigned long addr, pud_t *pudp)
 {
 	int ret = 0;
 
 	if (pud_young(*pudp))
 		ret = test_and_clear_bit(_PAGE_BIT_ACCESSED,
-					 (unsigned long *)pudp);
+								 (unsigned long *)pudp);
 
 	return ret;
 }
 #endif
 
 int ptep_clear_flush_young(struct vm_area_struct *vma,
-			   unsigned long address, pte_t *ptep)
+						   unsigned long address, pte_t *ptep)
 {
 	/*
 	 * On x86 CPUs, clearing the accessed bit without a TLB flush
@@ -596,7 +609,7 @@ int ptep_clear_flush_young(struct vm_area_struct *vma,
 
 #ifdef CONFIG_TRANSPARENT_HUGEPAGE
 int pmdp_clear_flush_young(struct vm_area_struct *vma,
-			   unsigned long address, pmd_t *pmdp)
+						   unsigned long address, pmd_t *pmdp)
 {
 	int young;
 
@@ -610,7 +623,7 @@ int pmdp_clear_flush_young(struct vm_area_struct *vma,
 }
 
 pmd_t pmdp_invalidate_ad(struct vm_area_struct *vma, unsigned long address,
-			 pmd_t *pmdp)
+						 pmd_t *pmdp)
 {
 	/*
 	 * No flush is necessary. Once an invalid PTE is established, the PTE's
@@ -633,7 +646,7 @@ void __init reserve_top_address(unsigned long reserve)
 	BUG_ON(fixmaps_set > 0);
 	__FIXADDR_TOP = round_down(-reserve, 1 << PMD_SHIFT) - PAGE_SIZE;
 	printk(KERN_INFO "Reserving virtual address space above 0x%08lx (rounded to 0x%08lx)\n",
-	       -reserve, __FIXADDR_TOP + PAGE_SIZE);
+		   -reserve, __FIXADDR_TOP + PAGE_SIZE);
 #endif
 }
 
@@ -644,15 +657,16 @@ void __native_set_fixmap(enum fixed_addresses idx, pte_t pte)
 	unsigned long address = __fix_to_virt(idx);
 
 #ifdef CONFIG_X86_64
-       /*
-	* Ensure that the static initial page tables are covering the
-	* fixmap completely.
-	*/
+	/*
+	 * Ensure that the static initial page tables are covering the
+	 * fixmap completely.
+	 */
 	BUILD_BUG_ON(__end_of_permanent_fixed_addresses >
-		     (FIXMAP_PMD_NUM * PTRS_PER_PTE));
+				 (FIXMAP_PMD_NUM * PTRS_PER_PTE));
 #endif
 
-	if (idx >= __end_of_fixed_addresses) {
+	if (idx >= __end_of_fixed_addresses)
+	{
 		BUG();
 		return;
 	}
@@ -661,7 +675,7 @@ void __native_set_fixmap(enum fixed_addresses idx, pte_t pte)
 }
 
 void native_set_fixmap(unsigned /* enum fixed_addresses */ idx,
-		       phys_addr_t phys, pgprot_t flags)
+					   phys_addr_t phys, pgprot_t flags)
 {
 	/* Sanitize 'prot' against any unsupported bits: */
 	pgprot_val(flags) &= __default_kernel_pte_mask;
@@ -715,7 +729,7 @@ int pud_set_huge(pud_t *pud, phys_addr_t addr, pgprot_t prot)
 
 	mtrr = mtrr_type_lookup(addr, addr + PUD_SIZE, &uniform);
 	if ((mtrr != MTRR_TYPE_INVALID) && (!uniform) &&
-	    (mtrr != MTRR_TYPE_WRBACK))
+		(mtrr != MTRR_TYPE_WRBACK))
 		return 0;
 
 	/* Bail out if we are we on a populated non-leaf entry: */
@@ -723,8 +737,8 @@ int pud_set_huge(pud_t *pud, phys_addr_t addr, pgprot_t prot)
 		return 0;
 
 	set_pte((pte_t *)pud, pfn_pte(
-		(u64)addr >> PAGE_SHIFT,
-		__pgprot(protval_4k_2_large(pgprot_val(prot)) | _PAGE_PSE)));
+							  (u64)addr >> PAGE_SHIFT,
+							  __pgprot(protval_4k_2_large(pgprot_val(prot)) | _PAGE_PSE)));
 
 	return 1;
 }
@@ -742,9 +756,10 @@ int pmd_set_huge(pmd_t *pmd, phys_addr_t addr, pgprot_t prot)
 
 	mtrr = mtrr_type_lookup(addr, addr + PMD_SIZE, &uniform);
 	if ((mtrr != MTRR_TYPE_INVALID) && (!uniform) &&
-	    (mtrr != MTRR_TYPE_WRBACK)) {
+		(mtrr != MTRR_TYPE_WRBACK))
+	{
 		pr_warn_once("%s: Cannot satisfy [mem %#010llx-%#010llx] with a huge-page mapping due to MTRR override.\n",
-			     __func__, addr, addr + PMD_SIZE);
+					 __func__, addr, addr + PMD_SIZE);
 		return 0;
 	}
 
@@ -753,8 +768,8 @@ int pmd_set_huge(pmd_t *pmd, phys_addr_t addr, pgprot_t prot)
 		return 0;
 
 	set_pte((pte_t *)pmd, pfn_pte(
-		(u64)addr >> PAGE_SHIFT,
-		__pgprot(protval_4k_2_large(pgprot_val(prot)) | _PAGE_PSE)));
+							  (u64)addr >> PAGE_SHIFT,
+							  __pgprot(protval_4k_2_large(pgprot_val(prot)) | _PAGE_PSE)));
 
 	return 1;
 }
@@ -766,7 +781,8 @@ int pmd_set_huge(pmd_t *pmd, phys_addr_t addr, pgprot_t prot)
  */
 int pud_clear_huge(pud_t *pud)
 {
-	if (pud_large(*pud)) {
+	if (pud_large(*pud))
+	{
 		pud_clear(pud);
 		return 1;
 	}
@@ -781,7 +797,8 @@ int pud_clear_huge(pud_t *pud)
  */
 int pmd_clear_huge(pmd_t *pmd)
 {
-	if (pmd_large(*pmd)) {
+	if (pmd_large(*pmd))
+	{
 		pmd_clear(pmd);
 		return 1;
 	}
@@ -811,7 +828,8 @@ int pud_free_pmd_page(pud_t *pud, unsigned long addr)
 	if (!pmd_sv)
 		return 0;
 
-	for (i = 0; i < PTRS_PER_PMD; i++) {
+	for (i = 0; i < PTRS_PER_PMD; i++)
+	{
 		pmd_sv[i] = pmd[i];
 		if (!pmd_none(pmd[i]))
 			pmd_clear(&pmd[i]);
@@ -820,10 +838,12 @@ int pud_free_pmd_page(pud_t *pud, unsigned long addr)
 	pud_clear(pud);
 
 	/* INVLPG to clear all paging-structure caches */
-	flush_tlb_kernel_range(addr, addr + PAGE_SIZE-1);
+	flush_tlb_kernel_range(addr, addr + PAGE_SIZE - 1);
 
-	for (i = 0; i < PTRS_PER_PMD; i++) {
-		if (!pmd_none(pmd_sv[i])) {
+	for (i = 0; i < PTRS_PER_PMD; i++)
+	{
+		if (!pmd_none(pmd_sv[i]))
+		{
 			pte = (pte_t *)pmd_page_vaddr(pmd_sv[i]);
 			free_page((unsigned long)pte);
 		}
@@ -853,7 +873,7 @@ int pmd_free_pte_page(pmd_t *pmd, unsigned long addr)
 	pmd_clear(pmd);
 
 	/* INVLPG to clear all paging-structure caches */
-	flush_tlb_kernel_range(addr, addr + PAGE_SIZE-1);
+	flush_tlb_kernel_range(addr, addr + PAGE_SIZE - 1);
 
 	free_page((unsigned long)pte);
 
@@ -872,4 +892,4 @@ int pmd_free_pte_page(pmd_t *pmd, unsigned long addr)
 }
 
 #endif /* CONFIG_X86_64 */
-#endif	/* CONFIG_HAVE_ARCH_HUGE_VMAP */
+#endif /* CONFIG_HAVE_ARCH_HUGE_VMAP */

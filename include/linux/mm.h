@@ -279,10 +279,20 @@ extern unsigned int kobjsize(const void *objp);
 #define VM_PFNMAP	0x00000400	/* Page-ranges managed without "struct page", just pure PFN */
 #define VM_UFFD_WP	0x00001000	/* wrprotect pages tracking */
 
-#define VM_LOCKED	0x00002000
-#define VM_IO           0x00004000	/* Memory mapped I/O or similar */
+//  在内存紧张的时候，这块虚拟内存区域非常重要，不能被换出到磁盘中
+#define VM_LOCKED	0x00002000  
+
+//  表示这块虚拟内存区域可以映射至设备 IO 空间中。通常在设备驱动程序执行 mmap 进行 IO 空间映射时才会被设置
+#define VM_IO           0x00004000	/* Memory mapped I/O or similar */ 
 
 					/* Used by sys_madvise() */
+/*
+    VM_SEQ_READ 的设置用来暗示内核，应用程序对这块虚拟内存区域的读取是会采用顺序读的方式进行，
+        内核会根据实际情况决定预读后续的内存页数，以便加快下次顺序访问速度。
+        
+    VM_RAND_READ 的设置会暗示内核，应用程序会对这块虚拟内存区域进行随机读取，
+        内核则会根据实际情况减少预读的内存页数甚至停止预读。
+*/
 #define VM_SEQ_READ	0x00008000	/* App will access data sequentially */
 #define VM_RAND_READ	0x00010000	/* App will not benefit from clustered reads */
 
